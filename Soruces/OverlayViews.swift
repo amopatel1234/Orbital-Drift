@@ -42,12 +42,14 @@ struct GameOverCard: View {
     let score: Int
     let highScore: Int
     let restart: () -> Void
+    let goMenu: () -> Void
     var body: some View {
         VStack(spacing: 10) {
             Text("Game Over").font(.title2.bold())
             Text("Score \(score)").monospacedDigit()
             Text("Best \(highScore)").monospacedDigit().foregroundStyle(.secondary)
             Button("Play Again", action: restart).buttonStyle(.borderedProminent)
+            Button("Menu", action: goMenu).buttonStyle(.bordered)
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))

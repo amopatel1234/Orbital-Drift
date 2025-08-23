@@ -12,7 +12,11 @@ import UIKit
 struct OrbiterGameView: View {
     @StateObject private var game = GameState()
     @State private var size: CGSize = .zero
-
+    
+    // In OrbiterGameView
+    @EnvironmentObject private var scores: ScoresStore
+    @EnvironmentObject private var router: AppRouter
+    
     var body: some View {
         ZStack {
             // Background
@@ -21,7 +25,7 @@ struct OrbiterGameView: View {
                 .init(color: Color.purple.opacity(0.2), location: 1)
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
             .ignoresSafeArea()
-
+            
             GeometryReader { proxy in
                 let proxySize = proxy.size
                 Color.clear
@@ -34,7 +38,7 @@ struct OrbiterGameView: View {
                         size = newValue
                         game.worldCenter = CGPoint(x: newValue.width/2, y: newValue.height/2)
                     }
-
+                
                 TimelineView(.animation) { timeline in
                     Canvas(rendersAsynchronously: true) { context, _ in
                         // Orbit ring (with near-miss flash)
@@ -48,14 +52,14 @@ struct OrbiterGameView: View {
                         let baseOpacity = game.theme.ringOpacity
                         let ringColor = Color.white.opacity(baseOpacity + 0.25 * flash)
                         context.stroke(ringPath, with: .color(ringColor), lineWidth: 2 + 1 * flash)
-
+                        
                         // Player
                         let playerPos = game.playerPosition()
                         let playerRect = CGRect(x: playerPos.x - game.player.size,
                                                 y: playerPos.y - game.player.size,
                                                 width: game.player.size*2, height: game.player.size*2)
                         context.fill(Path(ellipseIn: playerRect), with: .color(.white))
-
+                        
                         // Shield halo
                         if game.shieldCharges > 0 {
                             let halo = CGRect(x: playerPos.x - (game.player.size + 6),
@@ -63,20 +67,20 @@ struct OrbiterGameView: View {
                                               width: (game.player.size + 6) * 2, height: (game.player.size + 6) * 2)
                             context.stroke(Path(ellipseIn: halo), with: .color(.white.opacity(0.6)), lineWidth: 2)
                         }
-
+                        
                         // Asteroids
                         for a in game.asteroids {
                             let rect = CGRect(x: a.pos.x - a.size, y: a.pos.y - a.size,
                                               width: a.size*2, height: a.size*2)
                             context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(game.theme.asteroidAlpha)))
                         }
-
+                        
                         // Powerups
                         for p in game.powerups {
                             let rect = CGRect(x: p.pos.x - p.size, y: p.pos.y - p.size, width: p.size*2, height: p.size*2)
                             context.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(0.9)), lineWidth: 2)
                         }
-
+                        
                         // Particles
                         for p in game.particles {
                             let alpha = max(0, Double(p.life))
@@ -92,6 +96,11 @@ struct OrbiterGameView: View {
                     .onChange(of: timeline.date) { newDate in
                         game.update(now: newDate.timeIntervalSinceReferenceDate, size: proxySize)
                     }
+                    .onChange(of: game.phase) { newPhase in
+                        if newPhase == .gameOver {
+                            scores.add(score: game.score)
+                        }
+                    }
                 }
             }
         }
@@ -100,7 +109,7 @@ struct OrbiterGameView: View {
         }
         .accessibilityElement(children: .contain)
     }
-
+    
     @ViewBuilder
     private var overlayUI: some View {
         VStack(spacing: 12) {
@@ -108,17 +117,9 @@ struct OrbiterGameView: View {
                 Text("Score \(game.score)")
                     .font(.system(.headline, design: .rounded)).monospacedDigit()
                     .accessibilityLabel(Text("Score \(game.score)"))
-
+                
                 Spacer()
-
-                Menu {
-                    Picker("Theme", selection: $game.theme) {
-                        ForEach(Theme.allCases) { Text($0.rawValue.capitalized).tag($0) }
-                    }
-                } label: {
-                    Image(systemName: "paintpalette")
-                }
-
+                
                 Button(action: { game.togglePause() }) {
                     Image(systemName: game.phase == .paused ? "play.fill" : "pause.fill")
                 }
@@ -127,16 +128,21 @@ struct OrbiterGameView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
-
+            
             Spacer()
-
+            
             switch game.phase {
             case .menu:
                 BigButton(title: "Start") { game.reset(in: size) }
             case .paused:
                 PauseCard(resume: { game.togglePause() }, restart: { game.reset(in: size) })
             case .gameOver:
-                GameOverCard(score: game.score, highScore: game.highScore) { game.reset(in: size) }
+                GameOverCard(
+                    score: game.score,
+                    highScore: game.highScore,
+                    restart: { game.reset(in: size) },
+                    goMenu: { router.backToRoot() }
+                )
             case .playing:
                 EmptyView()
             }
