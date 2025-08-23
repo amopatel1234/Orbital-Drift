@@ -13,6 +13,11 @@
 		3B9D9EB32E5A3140006281F0 /* OrbiterGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAC2E5A30E1006281F0 /* OrbiterGameView.swift */; };
 		3B9D9EB42E5A3140006281F0 /* GameModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAA2E5A30C2006281F0 /* GameModels.swift */; };
 		3B9D9EB52E5A3140006281F0 /* View+Shake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAF2E5A30FE006281F0 /* View+Shake.swift */; };
+		3B9D9EB72E5A355B006281F0 /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EB62E5A355B006281F0 /* AppRouter.swift */; };
+		3B9D9EB92E5A356C006281F0 /* ScoreStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EB82E5A356C006281F0 /* ScoreStore.swift */; };
+		3B9D9EBB2E5A357B006281F0 /* MainMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EBA2E5A357B006281F0 /* MainMenuView.swift */; };
+		3B9D9EBD2E5A3582006281F0 /* HighScoresView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EBC2E5A3582006281F0 /* HighScoresView.swift */; };
+		3B9D9EBF2E5A3588006281F0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EBE2E5A3588006281F0 /* SettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,6 +47,11 @@
 		3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayViews.swift; sourceTree = "<group>"; };
 		3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		3B9D9EAF2E5A30FE006281F0 /* View+Shake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Shake.swift"; sourceTree = "<group>"; };
+		3B9D9EB62E5A355B006281F0 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		3B9D9EB82E5A356C006281F0 /* ScoreStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreStore.swift; sourceTree = "<group>"; };
+		3B9D9EBA2E5A357B006281F0 /* MainMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuView.swift; sourceTree = "<group>"; };
+		3B9D9EBC2E5A3582006281F0 /* HighScoresView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighScoresView.swift; sourceTree = "<group>"; };
+		3B9D9EBE2E5A3588006281F0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -111,6 +121,11 @@
 		3B9D9EA92E5A3079006281F0 /* Soruces */ = {
 			isa = PBXGroup;
 			children = (
+				3B9D9EBE2E5A3588006281F0 /* SettingsView.swift */,
+				3B9D9EBC2E5A3582006281F0 /* HighScoresView.swift */,
+				3B9D9EBA2E5A357B006281F0 /* MainMenuView.swift */,
+				3B9D9EB82E5A356C006281F0 /* ScoreStore.swift */,
+				3B9D9EB62E5A355B006281F0 /* AppRouter.swift */,
 				3B9D9EAF2E5A30FE006281F0 /* View+Shake.swift */,
 				3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */,
 				3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */,
@@ -265,12 +280,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3B9D9EBD2E5A3582006281F0 /* HighScoresView.swift in Sources */,
+				3B9D9EBB2E5A357B006281F0 /* MainMenuView.swift in Sources */,
 				3B9D9EB02E5A3140006281F0 /* GameState.swift in Sources */,
 				3B9D9EB12E5A3140006281F0 /* OverlayViews.swift in Sources */,
 				3B9D9EB22E5A3140006281F0 /* Haptics.swift in Sources */,
+				3B9D9EB92E5A356C006281F0 /* ScoreStore.swift in Sources */,
 				3B9D9EB32E5A3140006281F0 /* OrbiterGameView.swift in Sources */,
 				3B9D9EB42E5A3140006281F0 /* GameModels.swift in Sources */,
 				3B9D9EB52E5A3140006281F0 /* View+Shake.swift in Sources */,
+				3B9D9EB72E5A355B006281F0 /* AppRouter.swift in Sources */,
+				3B9D9EBF2E5A3588006281F0 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
