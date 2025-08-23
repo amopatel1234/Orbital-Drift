@@ -1,0 +1,231 @@
+//
+//  GameState.swift
+//  OrbitalDrift
+//
+//  Created by Amish Patel on 24/08/2025.
+//
+
+
+import SwiftUI
+import Combine
+
+@MainActor
+final class GameState: ObservableObject {
+
+    // MARK: - Published state
+    @Published var phase: GamePhase = .menu
+    @Published var score: Int = 0
+    @Published var highScore: Int = UserDefaults.standard.integer(forKey: "highScore")
+    @Published var player = Player()
+    @Published var asteroids: [Asteroid] = []
+    @Published var particles: [Particle] = []
+    @Published var powerups: [Powerup] = []
+    @Published var shieldCharges: Int = 0
+
+    @Published var worldCenter: CGPoint = .zero
+    @Published var orbitRadiusRange: ClosedRange<CGFloat> = 90...150
+
+    @AppStorage("theme") var theme: Theme = .classic
+
+    // Juice
+    @Published var shake: CGFloat = 0
+    @Published var nearMissFlash: Double = 0
+
+    // MARK: - Timing
+    private var lastUpdate: TimeInterval = 0
+    private var spawnAccumulator: TimeInterval = 0
+    private var powerupTimer: TimeInterval = 0
+    private var scoreAccumulator: TimeInterval = 0
+
+    // MARK: - Difficulty
+    private var spawnInterval: TimeInterval = 0.9
+    private var minSpawnInterval: TimeInterval = 0.25
+
+    // Near-miss
+    private let nearMissThreshold: CGFloat = 14
+    private var lastNearMissAt: TimeInterval = 0
+
+    // MARK: - Public API
+    func reset(in size: CGSize) {
+        worldCenter = CGPoint(x: size.width/2, y: size.height/2)
+        player = Player(angle: .pi/2, radius: 120)
+        asteroids.removeAll()
+        particles.removeAll()
+        powerups.removeAll()
+        shieldCharges = 0
+        score = 0
+
+        spawnInterval = 0.9
+        spawnAccumulator = 0
+        powerupTimer = 0
+        scoreAccumulator = 0
+        lastUpdate = 0
+
+        phase = .playing
+    }
+
+    func update(now: TimeInterval, size: CGSize) {
+        guard phase == .playing else {
+            lastUpdate = now
+            return
+        }
+        if lastUpdate == 0 { lastUpdate = now }
+        let dt = min(now - lastUpdate, 1.0/30.0) // clamp dt
+        lastUpdate = now
+
+        // Move asteroids
+        for i in asteroids.indices {
+            asteroids[i].pos.x += asteroids[i].vel.x * dt
+            asteroids[i].pos.y += asteroids[i].vel.y * dt
+        }
+
+        // Cull off-screen
+        let pad: CGFloat = 60
+        asteroids.removeAll { a in
+            a.pos.x < -pad || a.pos.x > size.width + pad || a.pos.y < -pad || a.pos.y > size.height + pad || !a.alive
+        }
+
+        // Spawn logic
+        spawnAccumulator += dt
+        if spawnAccumulator >= spawnInterval {
+            spawnAccumulator = 0
+            spawnAsteroid(size: size)
+            // smoother progression
+            spawnInterval = max(minSpawnInterval, spawnInterval - dt * 0.02)
+        }
+
+        // Powerup spawn timer
+        powerupTimer += dt
+        if powerupTimer > 6.5 {
+            powerupTimer = 0
+            if Bool.random(), powerups.count < 2 {
+                let angle = CGFloat.random(in: 0...(2*CGFloat.pi))
+                let r: CGFloat = CGFloat.random(in: 70...170)
+                let p = CGPoint(x: worldCenter.x + cos(angle)*r, y: worldCenter.y + sin(angle)*r)
+                powerups.append(Powerup(pos: .init(x: p.x, y: p.y)))
+            }
+        }
+
+        // Particles update
+        for i in particles.indices {
+            particles[i].pos.x += particles[i].vel.x * dt
+            particles[i].pos.y += particles[i].vel.y * dt
+            particles[i].life -= CGFloat(dt * 1.8)
+        }
+        particles.removeAll { $0.life <= 0 }
+
+        // Collisions + near-miss
+        let playerPos = playerPosition()
+        var collided = false
+        for i in asteroids.indices {
+            let d = (asteroids[i].pos - Vector2(x: playerPos.x, y: playerPos.y)).length()
+            let hitDist = (player.size + asteroids[i].size)
+            if d < hitDist {
+                if shieldCharges > 0 {
+                    shieldCharges -= 1
+                    emitBurst(at: playerPos, count: 16, speed: 140...220)
+                    Haptics.shared.nearMiss()
+                    player.radius = min(player.radius + 8, orbitRadiusRange.upperBound) // micro knockback
+                    continue
+                } else {
+                    collided = true
+                    break
+                }
+            } else if d < hitDist + nearMissThreshold, now - lastNearMissAt > 0.35 {
+                lastNearMissAt = now
+                score += 5
+                nearMissFlash = 1
+                withAnimation(.easeOut(duration: 0.25)) { shake = 6 }
+                Haptics.shared.nearMiss()
+                emitBurst(at: playerPos, count: 6, speed: 50...120)
+            }
+        }
+
+        // Powerup collect
+        for i in powerups.indices {
+            let d = (powerups[i].pos - Vector2(x: playerPos.x, y: playerPos.y)).length()
+            if d < (player.size + powerups[i].size) {
+                powerups[i].alive = false
+                shieldCharges = min(1, shieldCharges + 1)
+                Haptics.shared.nearMiss()
+                emitBurst(at: playerPos, count: 10, speed: 80...140)
+            }
+        }
+        powerups.removeAll { !$0.alive }
+
+        if collided {
+            player.isAlive = false
+            phase = .gameOver
+            highScore = max(highScore, score)
+            UserDefaults.standard.set(highScore, forKey: "highScore")
+            Haptics.shared.crash()
+        }
+
+        // Score ticks (pulses)
+        scoreAccumulator += dt
+        if scoreAccumulator >= 0.5 {
+            scoreAccumulator = 0
+            score += 5
+            Haptics.shared.scoreTick()
+        }
+
+        // Fade juice
+        nearMissFlash = max(0, nearMissFlash - dt*3.0)
+        shake = max(0, shake - CGFloat(dt*16))
+    }
+
+    func playerPosition() -> CGPoint {
+        let x = worldCenter.x + cos(player.angle) * player.radius
+        let y = worldCenter.y + sin(player.angle) * player.radius
+        return CGPoint(x: x, y: y)
+    }
+
+    func inputDrag(_ value: DragGesture.Value) {
+        guard phase == .playing else { return }
+        let v = Vector2(x: value.location.x - worldCenter.x, y: value.location.y - worldCenter.y)
+        let angle = atan2(v.y, v.x)
+        player.angle = angle
+        let dist = v.length()
+        player.radius = min(max(dist, orbitRadiusRange.lowerBound), orbitRadiusRange.upperBound)
+    }
+
+    func spawnAsteroid(size: CGSize) {
+        let edge = Int.random(in: 0..<4)
+        var pos = CGPoint.zero
+        switch edge {
+        case 0: pos = CGPoint(x: CGFloat.random(in: 0...size.width), y: -20)
+        case 1: pos = CGPoint(x: size.width + 20, y: CGFloat.random(in: 0...size.height))
+        case 2: pos = CGPoint(x: CGFloat.random(in: 0...size.width), y: size.height + 20)
+        default: pos = CGPoint(x: -20, y: CGFloat.random(in: 0...size.height))
+        }
+        let target = CGPoint(x: worldCenter.x + CGFloat.random(in: -40...40),
+                             y: worldCenter.y + CGFloat.random(in: -40...40))
+        let dir = CGVector(dx: target.x - pos.x, dy: target.y - pos.y)
+        let len = max(1, sqrt(dir.dx*dir.dx + dir.dy*dir.dy))
+        let speed = CGFloat.random(in: 60...160)
+        let vel = Vector2(x: (dir.dx/len) * speed, y: (dir.dy/len) * speed)
+        asteroids.append(Asteroid(pos: .init(x: pos.x, y: pos.y),
+                                  vel: vel,
+                                  size: CGFloat.random(in: 10...22)))
+    }
+
+    func emitBurst(at p: CGPoint, count: Int = 12, speed: ClosedRange<CGFloat> = 90...180) {
+        for _ in 0..<count {
+            let a = CGFloat.random(in: 0...(2*CGFloat.pi))
+            let s = CGFloat.random(in: speed)
+            particles.append(Particle(
+                pos: .init(x: p.x, y: p.y),
+                vel: .init(x: cos(a)*s, y: sin(a)*s),
+                life: 1
+            ))
+        }
+    }
+
+    func togglePause() {
+        switch phase {
+        case .playing: phase = .paused
+        case .paused:  phase = .playing
+        default: break
+        }
+    }
+}
