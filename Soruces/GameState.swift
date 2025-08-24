@@ -4,8 +4,6 @@
 //
 //  Created by Amish Patel on 24/08/2025.
 //
-
-
 import SwiftUI
 import Combine
 
@@ -20,11 +18,24 @@ final class GameState: ObservableObject {
     @Published var asteroids: [Asteroid] = []
     @Published var particles: [Particle] = []
     @Published var powerups: [Powerup] = []
-    @Published var shieldCharges: Int = 0
 
+    // Shields
+    @Published var shieldCharges: Int = 0
+    let maxShields: Int = 5
+    @Published var invulnerability: TimeInterval = 0 // seconds of i-frames
+    // GameState.swift
+    var invulnerabilityPulse: Double {
+        guard invulnerability > 0 else { return 0 }
+        // oscillate between 0…1 based on time remaining
+        let t = CACurrentMediaTime()
+        return (sin(t * 10) * 0.5 + 0.5)
+    }
+
+    // World / control
     @Published var worldCenter: CGPoint = .zero
     @Published var orbitRadiusRange: ClosedRange<CGFloat> = 90...150
 
+    // Theme (if you’re using it in rendering)
     @AppStorage("theme") var theme: Theme = .classic
 
     // Juice
@@ -53,6 +64,7 @@ final class GameState: ObservableObject {
         particles.removeAll()
         powerups.removeAll()
         shieldCharges = 0
+        invulnerability = 0
         score = 0
 
         spawnInterval = 0.9
@@ -70,8 +82,15 @@ final class GameState: ObservableObject {
             return
         }
         if lastUpdate == 0 { lastUpdate = now }
-        let dt = min(now - lastUpdate, 1.0/30.0) // clamp dt
+        var dt = now - lastUpdate
         lastUpdate = now
+        // clamp dt to avoid stalls
+        dt = min(max(dt, 0), 1.0/30.0)
+
+        // Tick invulnerability down
+        if invulnerability > 0 {
+            invulnerability = max(0, invulnerability - dt)
+        }
 
         // Move asteroids
         for i in asteroids.indices {
@@ -79,22 +98,23 @@ final class GameState: ObservableObject {
             asteroids[i].pos.y += asteroids[i].vel.y * dt
         }
 
-        // Cull off-screen
+        // Cull off-screen or dead
         let pad: CGFloat = 60
         asteroids.removeAll { a in
-            a.pos.x < -pad || a.pos.x > size.width + pad || a.pos.y < -pad || a.pos.y > size.height + pad || !a.alive
+            a.pos.x < -pad || a.pos.x > size.width + pad ||
+            a.pos.y < -pad || a.pos.y > size.height + pad ||
+            !a.alive
         }
 
-        // Spawn logic
+        // Spawn logic (smoother progression)
         spawnAccumulator += dt
         if spawnAccumulator >= spawnInterval {
             spawnAccumulator = 0
             spawnAsteroid(size: size)
-            // smoother progression
             spawnInterval = max(minSpawnInterval, spawnInterval - dt * 0.02)
         }
 
-        // Powerup spawn timer
+        // Powerup spawn timer (same as before; tweak as desired)
         powerupTimer += dt
         if powerupTimer > 6.5 {
             powerupTimer = 0
@@ -117,17 +137,36 @@ final class GameState: ObservableObject {
         // Collisions + near-miss
         let playerPos = playerPosition()
         var collided = false
+
+        // Iterate by index; if shield triggers, mark asteroid dead and continue
         for i in asteroids.indices {
             let d = (asteroids[i].pos - Vector2(x: playerPos.x, y: playerPos.y)).length()
             let hitDist = (player.size + asteroids[i].size)
+
             if d < hitDist {
+                // If invulnerable, pass through and delete the asteroid to prevent re-hit
+                if invulnerability > 0 {
+                    asteroids[i].alive = false
+                    continue
+                }
+
                 if shieldCharges > 0 {
+                    // Consume one shield, grant i-frames, delete the asteroid
                     shieldCharges -= 1
+                    invulnerability = 0.7    // brief invulnerability window
+                    asteroids[i].alive = false
+
                     emitBurst(at: playerPos, count: 16, speed: 140...220)
                     Haptics.shared.nearMiss()
-                    player.radius = min(player.radius + 8, orbitRadiusRange.upperBound) // micro knockback
+
+                    // Micro knockback to feel impactful
+                    player.radius = min(player.radius + 8, orbitRadiusRange.upperBound)
+
+                    // OPTIONAL: small score reward for shield save
+                    score += 10
                     continue
                 } else {
+                    // No shield → game over
                     collided = true
                     break
                 }
@@ -138,17 +177,24 @@ final class GameState: ObservableObject {
                 withAnimation(.easeOut(duration: 0.25)) { shake = 6 }
                 Haptics.shared.nearMiss()
                 emitBurst(at: playerPos, count: 6, speed: 50...120)
+                // ensure we stay in playing state
+                if phase != .playing { phase = .playing }
             }
         }
 
-        // Powerup collect
+        // Powerup collect (now stacks up to 5)
         for i in powerups.indices {
             let d = (powerups[i].pos - Vector2(x: playerPos.x, y: playerPos.y)).length()
             if d < (player.size + powerups[i].size) {
                 powerups[i].alive = false
-                shieldCharges = min(1, shieldCharges + 1)
-                Haptics.shared.nearMiss()
-                emitBurst(at: playerPos, count: 10, speed: 80...140)
+                if shieldCharges < maxShields {
+                    shieldCharges += 1
+                    Haptics.shared.nearMiss()
+                    emitBurst(at: playerPos, count: 10, speed: 80...140)
+                } else {
+                    // Already full — optional sparkle
+                    emitBurst(at: playerPos, count: 6, speed: 60...120)
+                }
             }
         }
         powerups.removeAll { !$0.alive }
