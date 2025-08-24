@@ -64,9 +64,11 @@ struct TutorialView: View {
     private func primaryAction() {
         switch mode {
         case .onboarding:
+            MusicLoop.shared.setScene(.game)
             seenTutorial = true
             router.go(.game)
         case .standalone:
+            MusicLoop.shared.setScene(.menu)
             router.backToRoot()
         }
     }

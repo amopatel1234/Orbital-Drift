@@ -32,6 +32,10 @@ struct ContentView: View {
                     }
                 }
         }
+        .onAppear {
+            MusicLoop.shared.playIfNeeded()
+            MusicLoop.shared.setScene(.menu)
+        }
         .environmentObject(router)
         .environmentObject(scores)
     }

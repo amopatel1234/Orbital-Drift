@@ -31,8 +31,10 @@ struct MainMenuView: View {
                 VStack(spacing: 12) {
                     Button {
                         if seenTutorial {
+                            MusicLoop.shared.setScene(.game)
                             router.go(.game)
                         } else {
+                            MusicLoop.shared.setScene(.tutorial)
                             router.go(.tutorialOnboarding)
                         }
                     } label: {
