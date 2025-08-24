@@ -127,7 +127,7 @@ platform :ios do
       )
       
       ipa_path = gym(
-        workspace: "OrbitalDrift.xcworkspace",
+        project: "OrbitalDrift.xcodeproj",
         scheme: "OrbitalDrift",
         export_method: "app-store",
         destination: "generic/platform=iOS",
