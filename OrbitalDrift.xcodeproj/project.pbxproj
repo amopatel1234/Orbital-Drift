@@ -22,6 +22,7 @@
 		3B9D9EDB2E5ACCC5006281F0 /* DemoOrbitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EDA2E5ACCC5006281F0 /* DemoOrbitView.swift */; };
 		3B9D9EDD2E5B61EC006281F0 /* SoundSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EDC2E5B61EC006281F0 /* SoundSynth.swift */; };
 		3B9D9EDF2E5B6403006281F0 /* MusicLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EDE2E5B6403006281F0 /* MusicLoop.swift */; };
+		3B9D9EF92E5B82A9006281F0 /* DisplayLinkAsync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EF82E5B82A9006281F0 /* DisplayLinkAsync.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,6 +61,7 @@
 		3B9D9EDA2E5ACCC5006281F0 /* DemoOrbitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoOrbitView.swift; sourceTree = "<group>"; };
 		3B9D9EDC2E5B61EC006281F0 /* SoundSynth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundSynth.swift; sourceTree = "<group>"; };
 		3B9D9EDE2E5B6403006281F0 /* MusicLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLoop.swift; sourceTree = "<group>"; };
+		3B9D9EF82E5B82A9006281F0 /* DisplayLinkAsync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayLinkAsync.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -129,6 +131,7 @@
 		3B9D9EA92E5A3079006281F0 /* Soruces */ = {
 			isa = PBXGroup;
 			children = (
+				3B9D9EF82E5B82A9006281F0 /* DisplayLinkAsync.swift */,
 				3B9D9EDE2E5B6403006281F0 /* MusicLoop.swift */,
 				3B9D9EDC2E5B61EC006281F0 /* SoundSynth.swift */,
 				3B9D9EDA2E5ACCC5006281F0 /* DemoOrbitView.swift */,
@@ -297,6 +300,7 @@
 				3B9D9EBB2E5A357B006281F0 /* MainMenuView.swift in Sources */,
 				3B9D9EB02E5A3140006281F0 /* GameState.swift in Sources */,
 				3B9D9EB12E5A3140006281F0 /* OverlayViews.swift in Sources */,
+				3B9D9EF92E5B82A9006281F0 /* DisplayLinkAsync.swift in Sources */,
 				3B9D9EDB2E5ACCC5006281F0 /* DemoOrbitView.swift in Sources */,
 				3B9D9EB22E5A3140006281F0 /* Haptics.swift in Sources */,
 				3B9D9EB92E5A356C006281F0 /* ScoreStore.swift in Sources */,
