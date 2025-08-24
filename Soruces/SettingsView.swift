@@ -37,9 +37,15 @@ struct SettingsView: View {
             Section("Audio") {
                 Toggle("Sound Effects", isOn: $soundEnabled)
                 Toggle("Music", isOn: $musicEnabled)
-                    .onChange(of: musicEnabled) { on in
-                        if on { MusicLoop.shared.playIfNeeded(); MusicLoop.shared.fade(to: 0.6) }
-                        else  { MusicLoop.shared.fade(to: 0);   MusicLoop.shared.stop() }
+                    .onChange(of: musicEnabled) {
+                        if musicEnabled {
+                            MusicLoop.shared.playIfNeeded()
+                            MusicLoop.shared.fade(to: 0.6)
+                        }
+                        else {
+                            MusicLoop.shared.fade(to: 0)
+                            MusicLoop.shared.stop()
+                        }
                     }
             }
             Section("About") {
