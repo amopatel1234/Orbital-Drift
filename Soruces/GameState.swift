@@ -6,78 +6,97 @@
 //
 import SwiftUI
 import Combine
+import QuartzCore
 
 @MainActor
 final class GameState: ObservableObject {
-    
+
     // MARK: - Published state
     @Published var phase: GamePhase = .menu
     @Published var score: Int = 0
     @Published var highScore: Int = UserDefaults.standard.integer(forKey: "highScore")
+
     @Published var player = Player()
     @Published var asteroids: [Asteroid] = []
     @Published var particles: [Particle] = []
     @Published var powerups: [Powerup] = []
-    
-    // Shields
+    @Published var shockwaves: [Shockwave] = []  // expanding ring FX
+
+    // Shields / i-frames
     @Published var shieldCharges: Int = 0
     let maxShields: Int = 5
     @Published var invulnerability: TimeInterval = 0 // seconds of i-frames
-    @Published var shockwaves: [Shockwave] = []
-    // GameState.swift
-    var invulnerabilityPulse: Double {
-        guard invulnerability > 0 else { return 0 }
-        // oscillate between 0…1 based on time remaining
-        let t = CACurrentMediaTime()
-        return (sin(t * 10) * 0.5 + 0.5)
-    }
-    
+
     // World / control
     @Published var worldCenter: CGPoint = .zero
     @Published var orbitRadiusRange: ClosedRange<CGFloat> = 90...150
-    
-    // Theme (if you’re using it in rendering)
+
+    // Theme (if you use it in rendering)
     @AppStorage("theme") var theme: Theme = .classic
-    
+
     // Juice
     @Published var shake: CGFloat = 0
     @Published var nearMissFlash: Double = 0
-    
+
+    /// For pulsing shield halo in the renderer
+    var invulnerabilityPulse: Double {
+        guard invulnerability > 0 else { return 0 }
+        let t = CACurrentMediaTime()
+        return (sin(t * 10) * 0.5 + 0.5)
+    }
+
+    // MARK: - Input smoothing (prevents tap-to-teleport)
+    @Published var targetAngle: CGFloat = .pi / 2
+    @Published var targetRadius: CGFloat = 120
+    private var isGrabbing = false
+
+    // Tuning
+    private let grabTolerance: CGFloat = 60     // px from ship to "pick up" control
+    private let maxTurnRate: CGFloat = 4.2      // radians/sec (angular speed toward target)
+    private let maxRadialSpeed: CGFloat = 180   // px/sec (radius change speed)
+
     // MARK: - Timing
     private var lastUpdate: TimeInterval = 0
     private var spawnAccumulator: TimeInterval = 0
     private var powerupTimer: TimeInterval = 0
     private var scoreAccumulator: TimeInterval = 0
-    
+
     // MARK: - Difficulty
     private var spawnInterval: TimeInterval = 0.9
     private var minSpawnInterval: TimeInterval = 0.25
-    
+
     // Near-miss
     private let nearMissThreshold: CGFloat = 14
     private var lastNearMissAt: TimeInterval = 0
-    
-    // MARK: - Public API
+
+    // MARK: - Lifecycle
     func reset(in size: CGSize) {
         worldCenter = CGPoint(x: size.width/2, y: size.height/2)
+
         player = Player(angle: .pi/2, radius: 120)
+        targetAngle = player.angle
+        targetRadius = player.radius
+        isGrabbing = false
+
         asteroids.removeAll()
         particles.removeAll()
         powerups.removeAll()
-        shieldCharges = 0
         shockwaves.removeAll()
+
+        shieldCharges = 0
         invulnerability = 0
         score = 0
-        
+
         spawnInterval = 0.9
         spawnAccumulator = 0
         powerupTimer = 0
         scoreAccumulator = 0
         lastUpdate = 0
-        
+
         phase = .playing
     }
-    
+
+    // MARK: - Main loop
     func update(now: TimeInterval, size: CGSize) {
         guard phase == .playing else {
             lastUpdate = now
@@ -86,20 +105,28 @@ final class GameState: ObservableObject {
         if lastUpdate == 0 { lastUpdate = now }
         var dt = now - lastUpdate
         lastUpdate = now
-        // clamp dt to avoid stalls
-        dt = min(max(dt, 0), 1.0/30.0)
-        
-        // Tick invulnerability down
-        if invulnerability > 0 {
-            invulnerability = max(0, invulnerability - dt)
-        }
-        
+        dt = min(max(dt, 0), 1.0/30.0) // clamp big spikes
+
+        // Tick invulnerability
+        if invulnerability > 0 { invulnerability = max(0, invulnerability - dt) }
+
+        // Smoothly steer toward targets (prevents teleporting)
+        let dAngle = shortestAngleDiff(from: player.angle, to: targetAngle)
+        let maxStep = maxTurnRate * dt
+        let step = max(min(dAngle, maxStep), -maxStep)
+        player.angle = normalizeAngle(player.angle + step)
+
+        let dRad = targetRadius - player.radius
+        let maxRadStep = maxRadialSpeed * dt
+        let rStep = max(min(dRad, maxRadStep), -maxRadStep)
+        player.radius += rStep
+
         // Move asteroids
         for i in asteroids.indices {
             asteroids[i].pos.x += asteroids[i].vel.x * dt
             asteroids[i].pos.y += asteroids[i].vel.y * dt
         }
-        
+
         // Cull off-screen or dead
         let pad: CGFloat = 60
         asteroids.removeAll { a in
@@ -107,16 +134,16 @@ final class GameState: ObservableObject {
             a.pos.y < -pad || a.pos.y > size.height + pad ||
             !a.alive
         }
-        
-        // Spawn logic (smoother progression)
+
+        // Spawn logic
         spawnAccumulator += dt
         if spawnAccumulator >= spawnInterval {
             spawnAccumulator = 0
             spawnAsteroid(size: size)
             spawnInterval = max(minSpawnInterval, spawnInterval - dt * 0.02)
         }
-        
-        // Powerup spawn timer (same as before; tweak as desired)
+
+        // Powerup spawns (simple timer/coin-flip)
         powerupTimer += dt
         if powerupTimer > 6.5 {
             powerupTimer = 0
@@ -127,7 +154,7 @@ final class GameState: ObservableObject {
                 powerups.append(Powerup(pos: .init(x: p.x, y: p.y)))
             }
         }
-        
+
         // Particles update
         for i in particles.indices {
             particles[i].pos.x += particles[i].vel.x * dt
@@ -135,48 +162,46 @@ final class GameState: ObservableObject {
             particles[i].life -= CGFloat(dt * 1.8)
         }
         particles.removeAll { $0.life <= 0 }
-        
-        // Shockwaves update (NEW)
+
+        // Shockwaves update
         for i in shockwaves.indices {
-            shockwaves[i].age += CGFloat(dt * 1.6)    // speed of expansion
+            shockwaves[i].age += CGFloat(dt * 1.6)
         }
         shockwaves.removeAll { $0.age >= 1 }
-        
+
         // Collisions + near-miss
         let playerPos = playerPosition()
         var collided = false
-        
-        // Iterate by index; if shield triggers, mark asteroid dead and continue
+
         for i in asteroids.indices {
             let d = (asteroids[i].pos - Vector2(x: playerPos.x, y: playerPos.y)).length()
             let hitDist = (player.size + asteroids[i].size)
-            
+
             if d < hitDist {
-                // If invulnerable, pass through and delete the asteroid to prevent re-hit
+                // Already invulnerable: delete asteroid and pass through
                 if invulnerability > 0 {
                     asteroids[i].alive = false
                     continue
                 }
-                
+
                 if shieldCharges > 0 {
-                    // Consume one shield, grant i-frames, delete the asteroid
+                    // SHIELD SAVE
                     shieldCharges -= 1
-                    invulnerability = 0.7    // brief invulnerability window
+                    invulnerability = 0.7
                     asteroids[i].alive = false
-                    
-                    emitBurst(at: playerPos, count: 16, speed: 140...220)
+
+                    emitBurst(at: playerPos, count: 24, speed: 160...260)
                     emitShockwave(at: playerPos, maxRadius: 90)
                     Haptics.shared.nearMiss()
                     SoundSynth.shared.shieldSave()
-                    
-                    // Micro knockback to feel impactful
-                    player.radius = min(player.radius + 8, orbitRadiusRange.upperBound)
-                    
-                    // OPTIONAL: small score reward for shield save
+
+                    // Knockback and keep targets aligned so smoothing doesn't pull back
+                    player.radius = min(player.radius + 10, orbitRadiusRange.upperBound)
+                    targetRadius = player.radius
+
                     score += 10
                     continue
                 } else {
-                    // No shield → game over
                     collided = true
                     break
                 }
@@ -188,12 +213,13 @@ final class GameState: ObservableObject {
                 Haptics.shared.nearMiss()
                 SoundSynth.shared.nearMiss()
                 emitBurst(at: playerPos, count: 6, speed: 50...120)
-                // ensure we stay in playing state
+
+                // belt-and-suspenders: stay in playing
                 if phase != .playing { phase = .playing }
             }
         }
-        
-        // Powerup collect (now stacks up to 5)
+
+        // Powerup collect (stack to 5)
         for i in powerups.indices {
             let d = (powerups[i].pos - Vector2(x: playerPos.x, y: playerPos.y)).length()
             if d < (player.size + powerups[i].size) {
@@ -204,13 +230,12 @@ final class GameState: ObservableObject {
                     SoundSynth.shared.pickup()
                     emitBurst(at: playerPos, count: 10, speed: 80...140)
                 } else {
-                    // Already full — optional sparkle
                     emitBurst(at: playerPos, count: 6, speed: 60...120)
                 }
             }
         }
         powerups.removeAll { !$0.alive }
-        
+
         if collided {
             player.isAlive = false
             phase = .gameOver
@@ -219,40 +244,47 @@ final class GameState: ObservableObject {
             Haptics.shared.crash()
             SoundSynth.shared.crash()
         }
-        
-        // Score ticks (pulses)
+
+        // Score pulse (no tick sound to avoid metronome feel)
         scoreAccumulator += dt
         if scoreAccumulator >= 0.5 {
             scoreAccumulator = 0
             score += 5
             Haptics.shared.scoreTick()
         }
-        
+
         // Fade juice
         nearMissFlash = max(0, nearMissFlash - dt*3.0)
         shake = max(0, shake - CGFloat(dt*16))
     }
-    
-    // NEW: Shockwave emitter
-    func emitShockwave(at p: CGPoint, maxRadius: CGFloat = 80) {
-        shockwaves.append(Shockwave(pos: .init(x: p.x, y: p.y), age: 0, maxRadius: maxRadius))
-    }
-    
-    func playerPosition() -> CGPoint {
-        let x = worldCenter.x + cos(player.angle) * player.radius
-        let y = worldCenter.y + sin(player.angle) * player.radius
-        return CGPoint(x: x, y: y)
-    }
-    
+
+    // MARK: - Input
     func inputDrag(_ value: DragGesture.Value) {
         guard phase == .playing else { return }
+
+        if !isGrabbing {
+            // Require the gesture to start near the current ship position
+            let start = value.startLocation
+            let ship = playerPosition()
+            let startDist = hypot(start.x - ship.x, start.y - ship.y)
+            if startDist > grabTolerance { return } // ignore stray taps
+            isGrabbing = true
+        }
+
+        // Update targets based on finger location
         let v = Vector2(x: value.location.x - worldCenter.x, y: value.location.y - worldCenter.y)
-        let angle = atan2(v.y, v.x)
-        player.angle = angle
+        targetAngle = atan2(v.y, v.x)
+
         let dist = v.length()
-        player.radius = min(max(dist, orbitRadiusRange.lowerBound), orbitRadiusRange.upperBound)
+        let clamped = min(max(dist, orbitRadiusRange.lowerBound), orbitRadiusRange.upperBound)
+        targetRadius = clamped
+    }
+
+    func endDrag() {
+        isGrabbing = false
     }
     
+    // MARK: - Spawns & FX
     func spawnAsteroid(size: CGSize) {
         let edge = Int.random(in: 0..<4)
         var pos = CGPoint.zero
@@ -272,7 +304,7 @@ final class GameState: ObservableObject {
                                   vel: vel,
                                   size: CGFloat.random(in: 10...22)))
     }
-    
+
     func emitBurst(at p: CGPoint, count: Int = 12, speed: ClosedRange<CGFloat> = 90...180) {
         for _ in 0..<count {
             let a = CGFloat.random(in: 0...(2*CGFloat.pi))
@@ -284,12 +316,36 @@ final class GameState: ObservableObject {
             ))
         }
     }
+
+    func emitShockwave(at p: CGPoint, maxRadius: CGFloat = 80) {
+        shockwaves.append(Shockwave(pos: .init(x: p.x, y: p.y), age: 0, maxRadius: maxRadius))
+    }
+
+    // MARK: - Geometry
+    func playerPosition() -> CGPoint {
+        let x = worldCenter.x + cos(player.angle) * player.radius
+        let y = worldCenter.y + sin(player.angle) * player.radius
+        return CGPoint(x: x, y: y)
+    }
     
+    // MARK: - Pause
     func togglePause() {
         switch phase {
         case .playing: phase = .paused
         case .paused:  phase = .playing
         default: break
         }
+    }
+    
+    // MARK: - Helpers (angles)
+    private func normalizeAngle(_ a: CGFloat) -> CGFloat {
+        var x = a
+        while x <= -.pi { x += 2 * .pi }
+        while x >   .pi { x -= 2 * .pi }
+        return x
+    }
+
+    private func shortestAngleDiff(from a: CGFloat, to b: CGFloat) -> CGFloat {
+        normalizeAngle(b - a)
     }
 }
