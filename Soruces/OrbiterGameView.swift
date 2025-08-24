@@ -12,12 +12,12 @@ struct OrbiterGameView: View {
     @EnvironmentObject private var scores: ScoresStore
     @EnvironmentObject private var router: AppRouter
     @State private var size: CGSize = .zero
-
+    
     var body: some View {
         ZStack {
             GeometryReader { proxy in
                 let proxySize = proxy.size
-
+                
                 // Setup/resize
                 Color.clear
                     .onAppear {
@@ -29,7 +29,7 @@ struct OrbiterGameView: View {
                         size = newValue
                         game.worldCenter = CGPoint(x: newValue.width/2, y: newValue.height/2)
                     }
-
+                
                 // === Playfield ===
                 ZStack {
                     // 1) Canvas can shake freely
@@ -45,7 +45,7 @@ struct OrbiterGameView: View {
                             let flash = game.nearMissFlash
                             let ringColor = Color.white.opacity(0.15 + 0.25 * flash)
                             context.stroke(ringPath, with: .color(ringColor), lineWidth: 2 + 1 * flash)
-
+                            
                             // Player
                             let playerPos = game.playerPosition()
                             let playerRect = CGRect(x: playerPos.x - game.player.size,
@@ -53,28 +53,36 @@ struct OrbiterGameView: View {
                                                     width: game.player.size*2, height: game.player.size*2)
                             context.fill(Path(ellipseIn: playerRect), with: .color(.white))
 
-                            // Shield halo
-                            if game.shieldCharges > 0 {
-                                let halo = CGRect(x: playerPos.x - (game.player.size + 6),
-                                                  y: playerPos.y - (game.player.size + 6),
-                                                  width: (game.player.size + 6) * 2, height: (game.player.size + 6) * 2)
-                                context.stroke(Path(ellipseIn: halo), with: .color(.white.opacity(0.6)), lineWidth: 2)
-                            }
+                            // Shield halo (when you have at least 1 charge OR invulnerable)
+                            if game.shieldCharges > 0 || game.invulnerability > 0 {
+                                let pulse = game.invulnerabilityPulse
+                                let haloSize = game.player.size + 6 + CGFloat(pulse * 6) // expand with pulse
+                                let halo = CGRect(x: playerPos.x - haloSize,
+                                                  y: playerPos.y - haloSize,
+                                                  width: haloSize*2, height: haloSize*2)
 
+                                let opacity = game.invulnerability > 0
+                                    ? 0.8 - (pulse * 0.3)    // stronger pulsing halo
+                                    : 0.6                    // static if just shielded
+                                context.stroke(Path(ellipseIn: halo),
+                                               with: .color(.white.opacity(opacity)),
+                                               lineWidth: 2 + CGFloat(pulse))
+                            }
+                            
                             // Asteroids
                             for a in game.asteroids {
                                 let rect = CGRect(x: a.pos.x - a.size, y: a.pos.y - a.size,
                                                   width: a.size*2, height: a.size*2)
                                 context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.85)))
                             }
-
+                            
                             // Powerups
                             for p in game.powerups {
                                 let rect = CGRect(x: p.pos.x - p.size, y: p.pos.y - p.size,
                                                   width: p.size*2, height: p.size*2)
                                 context.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(0.9)), lineWidth: 2)
                             }
-
+                            
                             // Particles
                             for p in game.particles {
                                 let alpha = max(0, Double(p.life))
@@ -94,7 +102,7 @@ struct OrbiterGameView: View {
                         }
                     }
                     .screenShake(game.shake)
-
+                    
                     // 2) Stable input layer (does NOT move/shake)
                     Color.clear
                         .contentShape(Rectangle())
@@ -107,7 +115,7 @@ struct OrbiterGameView: View {
                         )
                 }
             }
-
+            
             // === HUD & overlays ===
             overlayUI
         }
@@ -124,18 +132,26 @@ struct OrbiterGameView: View {
         .preferredColorScheme(.dark)
         .accessibilityElement(children: .contain)
     }
-
+    
     @ViewBuilder
     private var overlayUI: some View {
         VStack(spacing: 12) {
             HStack {
                 Text("Score \(game.score)")
-                    .font(.system(.headline, design: .rounded))
-                    .monospacedDigit()
-                    .accessibilityLabel(Text("Score \(game.score)"))
-
+                    .font(.system(.headline, design: .rounded)).monospacedDigit()
+                
+                if game.shieldCharges > 0 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shield.fill")
+                        Text("x\(game.shieldCharges)")
+                            .monospacedDigit()
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .accessibilityLabel(Text("Shields \(game.shieldCharges)"))
+                }
                 Spacer()
-
+                
                 Button(action: { game.togglePause() }) {
                     Image(systemName: game.phase == .paused ? "play.fill" : "pause.fill")
                 }
@@ -144,19 +160,19 @@ struct OrbiterGameView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
-
+            
             Spacer()
-
+            
             switch game.phase {
             case .menu:
                 BigButton(title: "Start") { game.reset(in: size) }
-
+                
             case .paused:
                 PauseCard(
                     resume: { game.togglePause() },
                     restart: { game.reset(in: size) }
                 )
-
+                
             case .gameOver:
                 GameOverCard(
                     score: game.score,
@@ -164,7 +180,7 @@ struct OrbiterGameView: View {
                     restart: { game.reset(in: size) },
                     goMenu: { router.backToRoot() }
                 )
-
+                
             case .playing:
                 EmptyView()
             }
