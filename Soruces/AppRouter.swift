@@ -13,6 +13,8 @@ enum AppScreen: Hashable {
     case game
     case highScores
     case settings
+    case tutorialOnboarding
+    case tutorial
 }
 
 @MainActor

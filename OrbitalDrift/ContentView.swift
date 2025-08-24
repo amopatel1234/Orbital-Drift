@@ -25,6 +25,10 @@ struct ContentView: View {
                         HighScoresView()
                     case .settings:
                         SettingsView()
+                    case .tutorialOnboarding:
+                        TutorialView(mode: .onboarding)
+                    case .tutorial:
+                        TutorialView(mode: .standalone)
                     }
                 }
         }
