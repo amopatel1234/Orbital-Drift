@@ -121,7 +121,7 @@ struct OrbiterGameView: View {
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { game.inputDrag($0) }
-                                .onEnded   { _ in game.endDrag() }
+                                .onEnded   { _ in game.endDrag() }   // <— add this
                         )
                 }
             }
