@@ -30,9 +30,9 @@ struct OrbiterGameView: View {
                         startLoop(size: proxySize)
                     }
                     .onDisappear { stopLoop() }
-                    .onChange(of: proxy.size) { newValue in
-                        size = newValue
-                        game.worldCenter = CGPoint(x: newValue.width/2, y: newValue.height/2)
+                    .onChange(of: proxy.size) {
+                        size = proxy.size
+                        game.worldCenter = CGPoint(x: proxy.size.width/2, y: proxy.size.height/2)
                     }
 
                 ZStack {
@@ -130,24 +130,34 @@ struct OrbiterGameView: View {
             overlayUI
         }
         // Music & score save on phase changes
-        .onChange(of: game.phase) { phase in
-            switch phase {
-            case .playing:  MusicLoop.shared.setScene(.game)
-            case .gameOver: scores.add(score: game.score); MusicLoop.shared.setScene(.gameOver)
-            case .paused:   MusicLoop.shared.setScene(.menu)
-            case .menu:     MusicLoop.shared.setScene(.menu)
+        .onChange(of: game.phase) {
+            switch game.phase {
+            case .playing:
+                MusicLoop.shared.setScene(.game)
+            case .gameOver:
+                scores.add(score: game.score)
+                MusicLoop.shared.setScene(.gameOver)
+            case .paused:
+                MusicLoop.shared.setScene(.menu)
+            case .menu:
+                MusicLoop.shared.setScene(.menu)
             }
         }
         // App lifecycle without Combine: pause loop when inactive, resume when active
-        .onChange(of: scenePhase) { phase in
-            switch phase {
+        .onChange(of: scenePhase) {
+            switch scenePhase {
             case .active:
                 // resume loop if needed
-                if loopTask == nil { startLoop(size: size) }
+                if loopTask == nil {
+                    startLoop(size: size)
+                }
             case .inactive, .background:
                 stopLoop()
-                if game.phase == .playing { game.togglePause() }
-            @unknown default: break
+                if game.phase == .playing {
+                    game.togglePause()
+                }
+            @unknown default:
+                break
             }
         }
         .preferredColorScheme(.dark)
