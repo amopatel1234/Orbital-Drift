@@ -53,6 +53,13 @@ struct Powerup: Identifiable {
     var alive: Bool = true
 }
 
+struct Shockwave: Identifiable {
+    let id = UUID()
+    var pos: Vector2
+    var age: CGFloat = 0       // 0...1
+    var maxRadius: CGFloat = 60
+}
+
 // MARK: - Theme
 
 enum Theme: String, CaseIterable, Identifiable {

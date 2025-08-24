@@ -20,6 +20,8 @@
 		3B9D9EBF2E5A3588006281F0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EBE2E5A3588006281F0 /* SettingsView.swift */; };
 		3B9D9ED92E5AC5F2006281F0 /* TutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9ED82E5AC5F2006281F0 /* TutorialView.swift */; };
 		3B9D9EDB2E5ACCC5006281F0 /* DemoOrbitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EDA2E5ACCC5006281F0 /* DemoOrbitView.swift */; };
+		3B9D9EDD2E5B61EC006281F0 /* SoundSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EDC2E5B61EC006281F0 /* SoundSynth.swift */; };
+		3B9D9EDF2E5B6403006281F0 /* MusicLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EDE2E5B6403006281F0 /* MusicLoop.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +58,8 @@
 		3B9D9EBE2E5A3588006281F0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3B9D9ED82E5AC5F2006281F0 /* TutorialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorialView.swift; sourceTree = "<group>"; };
 		3B9D9EDA2E5ACCC5006281F0 /* DemoOrbitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoOrbitView.swift; sourceTree = "<group>"; };
+		3B9D9EDC2E5B61EC006281F0 /* SoundSynth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundSynth.swift; sourceTree = "<group>"; };
+		3B9D9EDE2E5B6403006281F0 /* MusicLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLoop.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -125,6 +129,8 @@
 		3B9D9EA92E5A3079006281F0 /* Soruces */ = {
 			isa = PBXGroup;
 			children = (
+				3B9D9EDE2E5B6403006281F0 /* MusicLoop.swift */,
+				3B9D9EDC2E5B61EC006281F0 /* SoundSynth.swift */,
 				3B9D9EDA2E5ACCC5006281F0 /* DemoOrbitView.swift */,
 				3B9D9ED82E5AC5F2006281F0 /* TutorialView.swift */,
 				3B9D9EBE2E5A3588006281F0 /* SettingsView.swift */,
@@ -294,10 +300,12 @@
 				3B9D9EDB2E5ACCC5006281F0 /* DemoOrbitView.swift in Sources */,
 				3B9D9EB22E5A3140006281F0 /* Haptics.swift in Sources */,
 				3B9D9EB92E5A356C006281F0 /* ScoreStore.swift in Sources */,
+				3B9D9EDD2E5B61EC006281F0 /* SoundSynth.swift in Sources */,
 				3B9D9EB32E5A3140006281F0 /* OrbiterGameView.swift in Sources */,
 				3B9D9EB42E5A3140006281F0 /* GameModels.swift in Sources */,
 				3B9D9EB52E5A3140006281F0 /* View+Shake.swift in Sources */,
 				3B9D9EB72E5A355B006281F0 /* AppRouter.swift in Sources */,
+				3B9D9EDF2E5B6403006281F0 /* MusicLoop.swift in Sources */,
 				3B9D9EBF2E5A3588006281F0 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -463,6 +471,7 @@
 				DEVELOPMENT_TEAM = 24CTGGM78R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -491,6 +500,7 @@
 				DEVELOPMENT_TEAM = 24CTGGM78R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage("soundEnabled") var soundEnabled: Bool = true
     @AppStorage("hapticsEnabled") var hapticsEnabled: Bool = true
     @AppStorage("seenTutorial") private var seenTutorial = false
+    @AppStorage("musicEnabled") private var musicEnabled: Bool = true
     @State private var confirmReset = false
 
     var body: some View {
@@ -32,6 +33,14 @@ struct SettingsView: View {
                     confirmReset = true
                 }
                 .foregroundStyle(.orange)
+            }
+            Section("Audio") {
+                Toggle("Sound Effects", isOn: $soundEnabled)
+                Toggle("Music", isOn: $musicEnabled)
+                    .onChange(of: musicEnabled) { on in
+                        if on { MusicLoop.shared.playIfNeeded(); MusicLoop.shared.fade(to: 0.6) }
+                        else  { MusicLoop.shared.fade(to: 0);   MusicLoop.shared.stop() }
+                    }
             }
             Section("About") {
                 LabeledContent("Version",

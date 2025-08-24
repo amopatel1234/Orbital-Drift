@@ -90,6 +90,18 @@ struct OrbiterGameView: View {
                                 let rect = CGRect(x: p.pos.x - r, y: p.pos.y - r, width: r*2, height: r*2)
                                 context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
                             }
+                            
+                            // Shockwaves (expanding rings)
+                            for w in game.shockwaves {
+                                let r = CGFloat(w.age) * w.maxRadius
+                                let alpha = Double(max(0, 1 - w.age))
+                                let rect = CGRect(x: game.playerPosition().x - r,
+                                                  y: game.playerPosition().y - r,
+                                                  width: r * 2, height: r * 2)
+                                context.stroke(Path(ellipseIn: rect),
+                                               with: .color(.white.opacity(alpha * 0.8)),
+                                               lineWidth: max(1, 3 - r * 0.02))
+                            }
                         }
                         .onChange(of: timeline.date) { newDate in
                             // Keep the sim ticking with a clamped dt
@@ -120,9 +132,20 @@ struct OrbiterGameView: View {
             overlayUI
         }
         // Save score when round ends
-        .onChange(of: game.phase) { newPhase in
-            if newPhase == .gameOver {
+        .onChange(of: game.phase) { phase in
+            switch phase {
+            case .playing:
+                MusicLoop.shared.setScene(.game)
+
+            case .gameOver:
                 scores.add(score: game.score)
+                MusicLoop.shared.setScene(.gameOver)
+
+            case .paused:
+                MusicLoop.shared.setScene(.menu)   // or keep ducked if you prefer
+
+            case .menu:
+                MusicLoop.shared.setScene(.menu)
             }
         }
         // Auto-pause on background
