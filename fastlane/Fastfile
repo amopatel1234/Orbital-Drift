@@ -1,0 +1,178 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+xcode_select("/Applications/Xcode_16.4.app")
+platform :ios do
+
+  desc "Run unit test and upload test coverage"
+  lane :runUnitTests do
+    # Validate required environment variables
+    required_vars = ['WORKSPACE', 'WORKSPACE_FILENAME', 'SCHEME', 'TEST_PLAN']
+    required_vars.each do |var|
+      UI.user_error!("Missing required environment variable: #{var}") unless ENV[var]
+    end
+    
+    run_tests(
+      workspace: ENV["WORKSPACE_FILENAME"],
+      scheme: ENV["SCHEME"],
+      testplan: ENV["TEST_PLAN"],
+      result_bundle: true,
+    )
+  end
+  
+  desc "Deploy to App Store Connect"
+  lane :deploy do
+    if ENV["VERSION_NUMBER"].nil? || ENV["VERSION_NUMBER"].empty?
+      UI.important 'nothing to deploy'
+      next
+    end
+
+    app_store_connect_api_key(
+      key_id: ENV["KEY_ID"],
+      issuer_id: ENV["ISSUER_ID"],
+      key_content: ENV["KEY_VALUE"]
+    )
+
+    password = SecureRandom.hex
+    keychain_name = "signing_temp"
+
+    create_keychain(
+      name: keychain_name,
+      password: password,
+      unlock: true
+    )
+
+    begin
+      import_certificate(
+        certificate_path: "distribution.p12",
+        certificate_password: ENV["CERTIFICATE_PASSWORD"],
+        keychain_password: password,
+        keychain_name: keychain_name
+      )
+      
+      # Get the latest build number for this version
+      version = ENV["VERSION_NUMBER"]
+      build_number = Time.now.utc.strftime("%Y%m%d%H%M%S")
+    
+      # Update build number 
+      increment_build_number(
+        build_number: build_number,
+        xcodeproj: "OrbitalDrift.xcodeproj"
+      )
+      
+      # Resolve repo root no matter where Fastlane runs from
+	  repo_root =
+  	  if ENV["GITHUB_WORKSPACE"] && File.directory?(ENV["GITHUB_WORKSPACE"])
+    	 ENV["GITHUB_WORKSPACE"]
+  	  else
+    	File.expand_path("..", __dir__)  # __dir__ is fastlane/; go up to repo root
+  	  end
+
+	  # Find your .xcodeproj at the repo root
+	  candidates = Dir[File.join(repo_root, "*.xcodeproj")]
+	  UI.user_error!("No .xcodeproj found in #{repo_root}") if candidates.empty?
+	  # If you have more than one, pick by name; otherwise take the first
+	  xcodeproj_path = candidates.find { |p| File.basename(p) == "whattomake.xcodeproj" } || candidates.first
+
+	  UI.message("Opening Xcode project at: #{xcodeproj_path}")
+	  target_names   = ['OrbitalDrift']     # add extension target names here if needed
+	  configs_to_set = ['Release']        # or %w[Debug Release] if you want both
+
+	  require 'xcodeproj'
+	  proj = Xcodeproj::Project.open(xcodeproj_path)
+
+	  # 1) Project-level configs (some projects read from here)
+	  proj.build_configurations.each do |cfg|
+  	  	next unless configs_to_set.include?(cfg.name)
+  	  	cfg.build_settings['MARKETING_VERSION'] = version
+	  end
+
+	  # 2) Target-level configs (Xcode resolves target > project)
+	  proj.targets.each do |t|
+  		next unless target_names.include?(t.name)
+  		t.build_configurations.each do |cfg|
+    	next unless configs_to_set.include?(cfg.name)
+    	cfg.build_settings['MARKETING_VERSION'] = version
+  		end
+	  end
+
+	  proj.save
+
+	  UI.message("Set MARKETING_VERSION=#{version} for #{target_names.join(', ')} [#{configs_to_set.join(', ')}]")
+
+      get_provisioning_profile(
+        readonly: true,
+        app_identifier: "amishpatel.OrbitalDrift",
+        provisioning_name: "OrbitalDriftAppStore"
+      )
+      
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        code_sign_identity: "Apple Distribution",
+        profile_name: "OrbitalDriftAppStore",
+        targets: "OrbitalDrift"
+      )
+      
+      ipa_path = gym(
+        workspace: "OrbitalDrift.xcworkspace",
+        scheme: "OrbitalDrift",
+        export_method: "app-store",
+        destination: "generic/platform=iOS",
+        sdk: "iphoneos"
+      )
+
+      UI.success("Built IPA at: #{ipa_path}")
+
+  	  # --- Inspect the IPA's embedded Info.plist (what ASC will read) ---
+  	  # Prints the two keys; this is definitive.
+  	  sh(%Q{
+    	set -o pipefail
+    	unzip -p "#{ipa_path}" "Payload/*.app/Info.plist" \
+      	| plutil -p - 2>/dev/null \
+      	| egrep 'CFBundleShortVersionString|CFBundleVersion' || true
+  	  })
+
+  	  # Optional: expose values to GitHub Actions outputs (handy for logs/annotations)
+  	  if ENV["GITHUB_OUTPUT"]
+      	  # Parse values directly from the built IPA’s Info.plist
+  		  ipa_version = sh(%Q{
+    	  	unzip -p "#{ipa_path}" "Payload/*.app/Info.plist" \
+      	  	| plutil -extract CFBundleShortVersionString xml1 -o - - \
+      		| plutil -p - 2>/dev/null
+  		  }).strip.gsub(/["\n]/, '')
+
+  		  ipa_build = sh(%Q{
+    		unzip -p "#{ipa_path}" "Payload/*.app/Info.plist" \
+      		| plutil -extract CFBundleVersion xml1 -o - - \
+      		| plutil -p - 2>/dev/null
+  	  	  }).strip.gsub(/["\n]/, '')
+
+  		  UI.message("Exporting GitHub outputs -> version=#{ipa_version}, build=#{ipa_build}")
+
+  		  sh(%Q{echo "marketing_version=#{ipa_version}" >> "$GITHUB_OUTPUT"})
+  		  sh(%Q{echo "build_number=#{ipa_build}" >> "$GITHUB_OUTPUT"})
+  	  end
+  	  
+      upload_to_testflight(
+        skip_submission: true,
+        app_platform: "ios",
+        changelog: last_git_commit[:message]
+      )
+    ensure
+      delete_keychain(name: keychain_name)
+    end
+  end
+end
