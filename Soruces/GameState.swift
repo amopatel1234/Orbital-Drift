@@ -43,6 +43,15 @@ final class GameState: ObservableObject {
     @Published var shake: CGFloat = 0
     @Published var nearMissFlash: Double = 0
     
+    @Published var targetAngle: CGFloat = .pi / 2
+    @Published var targetRadius: CGFloat = 120
+    private var isGrabbing = false
+
+    // Tuning
+    private let grabTolerance: CGFloat = 60     // px from ship to allow “pick up”
+    private let maxTurnRate: CGFloat = 4.2      // radians per second
+    private let maxRadialSpeed: CGFloat = 180   // px per second
+    
     // MARK: - Timing
     private var lastUpdate: TimeInterval = 0
     private var spawnAccumulator: TimeInterval = 0
@@ -61,6 +70,9 @@ final class GameState: ObservableObject {
     func reset(in size: CGSize) {
         worldCenter = CGPoint(x: size.width/2, y: size.height/2)
         player = Player(angle: .pi/2, radius: 120)
+        targetAngle = player.angle
+        targetRadius = player.radius
+        isGrabbing = false
         asteroids.removeAll()
         particles.removeAll()
         powerups.removeAll()
@@ -88,6 +100,18 @@ final class GameState: ObservableObject {
         lastUpdate = now
         // clamp dt to avoid stalls
         dt = min(max(dt, 0), 1.0/30.0)
+        
+        // Smooth angle toward target
+        let diff = shortestAngleDiff(from: player.angle, to: targetAngle)
+        let maxStep = maxTurnRate * dt
+        let step = max(min(diff, maxStep), -maxStep)
+        player.angle = normalizeAngle(player.angle + step)
+
+        // Smooth radius toward target
+        let dr = targetRadius - player.radius
+        let maxRadStep = maxRadialSpeed * dt
+        let radStep = max(min(dr, maxRadStep), -maxRadStep)
+        player.radius += radStep
         
         // Tick invulnerability down
         if invulnerability > 0 {
@@ -170,7 +194,8 @@ final class GameState: ObservableObject {
                     SoundSynth.shared.shieldSave()
                     
                     // Micro knockback to feel impactful
-                    player.radius = min(player.radius + 8, orbitRadiusRange.upperBound)
+                    player.radius = min(player.radius + 10, orbitRadiusRange.upperBound)
+                    targetRadius = player.radius
                     
                     // OPTIONAL: small score reward for shield save
                     score += 10
@@ -246,11 +271,27 @@ final class GameState: ObservableObject {
     
     func inputDrag(_ value: DragGesture.Value) {
         guard phase == .playing else { return }
+
+        // Only start controlling if the gesture began near the current ship
+        if !isGrabbing {
+            let start = value.startLocation
+            let ship = playerPosition()
+            let startDist = hypot(start.x - ship.x, start.y - ship.y)
+            if startDist > grabTolerance { return } // ignore stray taps
+            isGrabbing = true
+        }
+
+        // Update targets based on current finger location
         let v = Vector2(x: value.location.x - worldCenter.x, y: value.location.y - worldCenter.y)
-        let angle = atan2(v.y, v.x)
-        player.angle = angle
+        targetAngle = atan2(v.y, v.x)
+
         let dist = v.length()
-        player.radius = min(max(dist, orbitRadiusRange.lowerBound), orbitRadiusRange.upperBound)
+        let clamped = min(max(dist, orbitRadiusRange.lowerBound), orbitRadiusRange.upperBound)
+        targetRadius = clamped
+    }
+
+    func endDrag() {
+        isGrabbing = false
     }
     
     func spawnAsteroid(size: CGSize) {
@@ -291,5 +332,17 @@ final class GameState: ObservableObject {
         case .paused:  phase = .playing
         default: break
         }
+    }
+    
+    private func normalizeAngle(_ a: CGFloat) -> CGFloat {
+        var x = a
+        while x <= -.pi { x += 2 * .pi }
+        while x >   .pi { x -= 2 * .pi }
+        return x
+    }
+
+    private func shortestAngleDiff(from a: CGFloat, to b: CGFloat) -> CGFloat {
+        let da = normalizeAngle(b - a)
+        return da
     }
 }

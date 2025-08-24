@@ -115,15 +115,13 @@ struct OrbiterGameView: View {
                     }
                     .screenShake(game.shake)
                     
-                    // 2) Stable input layer (does NOT move/shake)
+                    // Stable input layer
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(
                             DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    // Route input regardless of shake animations
-                                    game.inputDrag(value)
-                                }
+                                .onChanged { game.inputDrag($0) }
+                                .onEnded   { _ in game.endDrag() }
                         )
                 }
             }
