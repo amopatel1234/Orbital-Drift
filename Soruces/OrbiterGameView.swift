@@ -14,18 +14,18 @@ struct OrbiterGameView: View {
     @EnvironmentObject private var scores: ScoresStore
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
-
+    
     @State private var size: CGSize = .zero
     @State private var loopTask: Task<Void, Never>? = nil
     
     @AppStorage("debugEnabled") private var debugEnabled = false
     @AppStorage("debugDrawHitboxes") private var debugDrawHitboxes = true
-
+    
     var body: some View {
         ZStack {
             GeometryReader { proxy in
                 let proxySize = proxy.size
-
+                
                 ZStack {
                     // Split the big Canvas into smaller composable canvases
                     PlayfieldCanvas(game: game)
@@ -33,14 +33,13 @@ struct OrbiterGameView: View {
                     BulletsCanvas(game: game)
                     FXCanvas(game: game)
                     DebugCanvas(game: game, drawHitboxes: debugDrawHitboxes)
+                    // Controls (bottom corners)
+                    ControlsOverlay(game: game)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 0) // adjust if it collides with your cards
                 }
                 .screenShake(game.shake)
                 .contentShape(Rectangle()) // for gestures
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { game.inputDrag($0) }
-                        .onEnded { _ in game.endDrag() }
-                )
                 .onAppear {
                     size = proxySize
                     game.worldCenter = CGPoint(x: proxySize.width / 2, y: proxySize.height / 2)
@@ -55,7 +54,7 @@ struct OrbiterGameView: View {
                     stopLoop()
                 }
             }
-
+            
             if debugEnabled {
                 DevMeter(
                     fps: max(1, 1000.0 / game.debugFrameMs),               // derived
@@ -91,9 +90,9 @@ struct OrbiterGameView: View {
         .preferredColorScheme(.dark)
         .accessibilityElement(children: .contain)
     }
-
+    
     // MARK: - Overlay (your existing code)
-
+    
     @ViewBuilder
     private var overlayUI: some View {
         VStack(spacing: 12) {
@@ -101,7 +100,7 @@ struct OrbiterGameView: View {
                 Text("Score \(game.score)")
                     .font(.system(.headline, design: .rounded))
                     .monospacedDigit()
-
+                
                 if game.scoreMultiplier > 1.0 {
                     Text(String(format: "x%.2f", game.scoreMultiplier))
                         .font(.headline.monospacedDigit())
@@ -109,7 +108,7 @@ struct OrbiterGameView: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .accessibilityLabel(Text("Multiplier \(String(format: "%.2f", game.scoreMultiplier))"))
                 }
-
+                
                 if game.shieldCharges > 0 {
                     HStack(spacing: 6) {
                         Image(systemName: "shield.fill")
@@ -119,9 +118,9 @@ struct OrbiterGameView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                     .accessibilityLabel(Text("Shields \(game.shieldCharges)"))
                 }
-
+                
                 Spacer()
-
+                
                 Button(action: { game.togglePause() }) {
                     Image(systemName: game.phase == .paused ? "play.fill" : "pause.fill")
                 }
@@ -130,9 +129,9 @@ struct OrbiterGameView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
-
+            
             Spacer()
-
+            
             switch game.phase {
             case .menu:
                 BigButton(title: "Start") { game.reset(in: size) }
@@ -156,9 +155,9 @@ struct OrbiterGameView: View {
         .padding(.bottom, 24)
         .padding(.horizontal, 16)
     }
-
+    
     // MARK: - Loop control
-
+    
     private func startLoop(size: CGSize) {
         loopTask?.cancel()
         loopTask = Task { @MainActor in
@@ -167,7 +166,7 @@ struct OrbiterGameView: View {
             }
         }
     }
-
+    
     private func stopLoop() {
         loopTask?.cancel()
         loopTask = nil
@@ -191,13 +190,13 @@ private struct PlayfieldCanvas: View {
             let flash = game.nearMissFlash
             let ringColor = Color.white.opacity(0.15 + 0.25 * flash)
             context.stroke(ringPath, with: .color(ringColor), lineWidth: 2 + 1 * flash)
-
+            
             // Player
             let playerPos = game.playerPosition()
             let pr = game.player.size
             let playerRect = CGRect(x: playerPos.x - pr, y: playerPos.y - pr, width: pr * 2, height: pr * 2)
             context.fill(Path(ellipseIn: playerRect), with: .color(.white))
-
+            
             // Shield halo
             if game.shieldCharges > 0 || game.invulnerability > 0 {
                 let pulse = game.invulnerabilityPulse
@@ -265,7 +264,7 @@ private struct FXCanvas: View {
                 let rect = CGRect(x: p.pos.x - r, y: p.pos.y - r, width: r * 2, height: r * 2)
                 context.fill(Path(ellipseIn: rect), with: .color(p.color.opacity(alpha)))
             }
-
+            
             // Shockwaves
             for w in game.shockwaves {
                 let center = CGPoint(x: CGFloat(w.pos.x), y: CGFloat(w.pos.y))
@@ -276,36 +275,36 @@ private struct FXCanvas: View {
                                with: .color(.white.opacity(alpha * 0.8)),
                                lineWidth: max(1, 3 - r * 0.02))
             }
-
+            
             // +points toasts
             for t in game.toasts {
                 let prog = max(0, min(1, t.age / t.lifetime))
                 let rise: CGFloat = 28
                 let pos = CGPoint(x: CGFloat(t.pos.x), y: CGFloat(t.pos.y) - rise * prog)
-
+                
                 // scale pop (ease-out-back-ish)
                 let popPhase = min(prog / 0.25, 1)
                 let scale = 0.9 + (1 - pow(1 - popPhase, 3)) * 0.25
                 let opacity = 1 - Double(prog)
-
+                
                 let label = Text("+\(t.value)")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(t.color)
-
+                
                 context.opacity = opacity
-
+                
                 // Scale around `pos`
                 context.translateBy(x: pos.x, y: pos.y)
                 context.scaleBy(x: scale, y: scale)
                 context.translateBy(x: -pos.x, y: -pos.y)
-
+                
                 context.draw(label, at: pos, anchor: .center)
-
+                
                 // Reset transform
                 context.translateBy(x: pos.x, y: pos.y)
                 context.scaleBy(x: 1/scale, y: 1/scale)
                 context.translateBy(x: -pos.x, y: -pos.y)
-
+                
                 context.opacity = 1
             }
         }
@@ -316,31 +315,31 @@ private struct FXCanvas: View {
 private struct DebugCanvas: View {
     let game: GameState
     let drawHitboxes: Bool
-
+    
     var body: some View {
         Canvas { context, _ in
             guard drawHitboxes else { return }
-
+            
             // Player
             let pp = game.playerPosition()
             let pr = game.player.size
             context.stroke(Path(ellipseIn: .init(x: pp.x - pr, y: pp.y - pr, width: pr*2, height: pr*2)),
                            with: .color(.green.opacity(0.8)), lineWidth: 1)
-
+            
             // Enemies
             for a in game.asteroids where a.alive {
                 let r = a.size
                 context.stroke(Path(ellipseIn: .init(x: a.pos.x - r, y: a.pos.y - r, width: r*2, height: r*2)),
                                with: .color(.yellow.opacity(0.8)), lineWidth: 1)
             }
-
+            
             // Bullets
             for b in game.bullets {
                 let r = b.size
                 context.stroke(Path(ellipseIn: .init(x: CGFloat(b.pos.x) - r, y: CGFloat(b.pos.y) - r, width: r*2, height: r*2)),
                                with: .color(.cyan.opacity(0.8)), lineWidth: 1)
             }
-
+            
             // Power-ups
             for p in game.powerups {
                 let r = p.size
@@ -358,7 +357,7 @@ private struct DevMeter: View {
     let frameMs: Double
     let counts: (enemies: Int, bullets: Int, particles: Int)
     let scale: CGFloat
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(String(format: "FPS %.0f  (%.1f ms)", fps, frameMs))
@@ -371,5 +370,71 @@ private struct DevMeter: View {
         .foregroundStyle(.white)
         .padding(.leading, 12)
         .padding(.top, 12)
+    }
+}
+
+private struct PressHoldButton: View {
+    let systemImage: String
+    let label: String
+    let onPressChanged: (Bool) -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+
+        Text(Image(systemName: systemImage))  // icon only; label unused for now
+            .font(.title2.weight(.semibold))
+            .frame(width: 54, height: 54)
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(shape.stroke(.white.opacity(isPressed ? 0.8 : 0.25), lineWidth: 1))
+            .shadow(radius: isPressed ? 0 : 4)
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .contentShape(shape)
+            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity,
+                                pressing: { pressing in
+                                    if pressing != isPressed {
+                                        isPressed = pressing
+                                        onPressChanged(pressing)
+                                    }
+                                },
+                                perform: {})
+            // Nice haptic when press begins
+            .sensoryFeedback(.impact(weight: .light),
+                             trigger: isPressed)
+    }
+}
+
+private struct ControlsOverlay: View {
+    @Bindable var game: GameState   // @Observable model
+
+    var body: some View {
+        HStack {
+            // LEFT STACK: CCW on top, CW on bottom (thumb-friendly)
+            VStack(spacing: 10) {
+                PressHoldButton(systemImage: "arrow.counterclockwise", label: "CCW") {
+                    game.holdRotateCCW = $0
+                }
+                PressHoldButton(systemImage: "arrow.clockwise", label: "CW") {
+                    game.holdRotateCW = $0
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // RIGHT STACK: OUT on top, IN on bottom
+            VStack(spacing: 10) {
+                // RIGHT stack
+                PressHoldButton(systemImage: "arrow.up.to.line.compact", label: "OUT") {
+                    game.setOuterPress($0)
+                }
+                PressHoldButton(systemImage: "arrow.down.to.line.compact", label: "IN") {
+                    game.setInnerPress($0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 18)
+        .allowsHitTesting(true)
     }
 }

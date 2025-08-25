@@ -60,12 +60,39 @@ final class GameState {
     // MARK: - Input smoothing (prevents tap-to-teleport)
     var targetAngle: CGFloat = .pi / 2
     var targetRadius: CGFloat = 120
-    private var isGrabbing = false
     
     // Tuning
     private let grabTolerance: CGFloat = 60     // px from ship to "pick up" control
     private let maxTurnRate: CGFloat = 4.2      // radians/sec (angular speed toward target)
     private let maxRadialSpeed: CGFloat = 180   // px/sec (radius change speed)
+    
+    // MARK: - Controls (now supports both directions; you already use CW + Inner)
+    var holdRotateCW: Bool = false
+    var holdRotateCCW: Bool = false        // future button
+    var holdInnerRadius: Bool = false
+    var holdOuterRadius: Bool = false      // future button (not used yet)
+
+    // MARK: - Angular motion (radians)
+    var angularVel: CGFloat = 0
+    var angularMaxSpeed: CGFloat = 2.4     // cap for rotation speed
+    var angularAccel: CGFloat = 7.0        // thrust while held
+    var angularDecel: CGFloat = 6.0        // braking when no input
+    var angularFriction: CGFloat = 0.8     // small continuous drag (per second)
+
+    // MARK: - Radial motion (points)
+    var radialVel: CGFloat = 0
+    var radialMaxSpeed: CGFloat = 160      // px/s maximum radial speed
+    var radialAccel: CGFloat = 280         // thrust while moving toward target
+    var radialDecel: CGFloat = 240         // braking when overshooting/letting go
+    var radialFriction: CGFloat = 0.85     // small continuous drag (per second)
+    
+
+    // MARK: - Orbit bounds
+    let minOrbit: CGFloat = 60
+    let maxOrbit: CGFloat = 160
+    
+    private var lastOrbitBumpTime: CFTimeInterval = 0
+    private let orbitBumpCooldown: CFTimeInterval = 0.25
     
     // MARK: - Timing
     private var lastUpdate: TimeInterval = 0
@@ -97,10 +124,12 @@ final class GameState {
     func reset(in size: CGSize) {
         worldCenter = CGPoint(x: size.width/2, y: size.height/2)
         
-        player = Player(angle: .pi/2, radius: 120)
+        player = Player(angle: .pi/2, radius: maxOrbit)
         targetAngle = player.angle
         targetRadius = player.radius
-        isGrabbing = false
+        
+        angularVel = 0
+        radialVel  = 0
         
         bullets.removeAll()
         fireAccumulator = 0
@@ -180,16 +209,52 @@ final class GameState {
         // Tick invulnerability
         if invulnerability > 0 { invulnerability = max(0, invulnerability - dt) }
         
-        // Smoothly steer toward targets (prevents teleporting)
-        let dAngle = shortestAngleDiff(from: player.angle, to: targetAngle)
-        let maxStep = maxTurnRate * dt
-        let step = max(min(dAngle, maxStep), -maxStep)
-        player.angle = normalizeAngle(player.angle + step)
-        
-        let dRad = targetRadius - player.radius
-        let maxRadStep = maxRadialSpeed * dt
-        let rStep = max(min(dRad, maxRadStep), -maxRadStep)
-        player.radius += rStep
+        // === Momentum-based ANGLE ===
+        // Input: +1 = CCW, -1 = CW
+        let turnInput: CGFloat = (holdRotateCCW ? 1 : 0) - (holdRotateCW ? 1 : 0)
+        let turnTargetSpeed = turnInput * angularMaxSpeed
+
+        if turnInput != 0 {
+            // Thrust toward target speed
+            let delta = turnTargetSpeed - angularVel
+            let maxDelta = angularAccel * CGFloat(dt)
+            angularVel += max(-maxDelta, min(maxDelta, delta))
+        } else {
+            // No input: brake toward 0
+            let sign = angularVel >= 0 ? 1 : -1
+            let mag = abs(angularVel)
+            let newMag = max(0, mag - angularDecel * CGFloat(dt))
+            angularVel = CGFloat(sign) * newMag
+        }
+
+        // Continuous tiny drag (prevents endless micro-oscillation)
+        angularVel *= pow(angularFriction, CGFloat(dt))
+
+        // Integrate
+        player.angle += angularVel * CGFloat(dt)
+
+
+        // === Radius spring toward sticky target ===
+        let desiredRadius = targetRadius
+
+        // Critically damped spring
+        let k: CGFloat = 22.0
+        let c: CGFloat = 2 * sqrt(k)
+        let x = player.radius
+        let v = radialVel
+        let a = -k * (x - desiredRadius) - c * v
+
+        radialVel += a * CGFloat(dt)
+        player.radius += radialVel * CGFloat(dt)
+
+        // Clamp + bump haptic (unchanged)
+        player.radius = min(max(player.radius, minOrbit), maxOrbit)
+        let bumpedMin = player.radius <= minOrbit + 0.001
+        let bumpedMax = player.radius >= maxOrbit - 0.001
+        if (bumpedMin || bumpedMax), now - lastOrbitBumpTime > orbitBumpCooldown {
+            orbitBumpHaptic()
+            lastOrbitBumpTime = now
+        }
         
         // Move asteroids
         for i in asteroids.indices {
@@ -376,32 +441,6 @@ final class GameState {
         shake = max(0, shake - CGFloat(dt*16))
     }
     
-    // MARK: - Input
-    func inputDrag(_ value: DragGesture.Value) {
-        guard phase == .playing else { return }
-        
-        if !isGrabbing {
-            // Require the gesture to start near the current ship position
-            let start = value.startLocation
-            let ship = playerPosition()
-            let startDist = hypot(start.x - ship.x, start.y - ship.y)
-            if startDist > grabTolerance { return } // ignore stray taps
-            isGrabbing = true
-        }
-        
-        // Update targets based on finger location
-        let v = Vector2(x: value.location.x - worldCenter.x, y: value.location.y - worldCenter.y)
-        targetAngle = atan2(v.y, v.x)
-        
-        let dist = v.length()
-        let clamped = min(max(dist, orbitRadiusRange.lowerBound), orbitRadiusRange.upperBound)
-        targetRadius = clamped
-    }
-    
-    func endDrag() {
-        isGrabbing = false
-    }
-    
     // MARK: - Spawns & FX
     func spawnAsteroid(size: CGSize) {
         // Spawn from a random edge
@@ -517,5 +556,21 @@ final class GameState {
     
     private func shortestAngleDiff(from a: CGFloat, to b: CGFloat) -> CGFloat {
         normalizeAngle(b - a)
+    }
+    
+    private func orbitBumpHaptic() {
+        let gen = UIImpactFeedbackGenerator(style: .rigid)
+        gen.prepare()
+        gen.impactOccurred(intensity: 0.6)
+    }
+    
+    func setInnerPress(_ pressing: Bool) {
+        holdInnerRadius = pressing
+        targetRadius = pressing ? minOrbit : player.radius   // release: lock to current
+    }
+
+    func setOuterPress(_ pressing: Bool) {
+        holdOuterRadius = pressing
+        targetRadius = pressing ? maxOrbit : player.radius   // release: lock to current
     }
 }
