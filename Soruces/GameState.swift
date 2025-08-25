@@ -24,14 +24,13 @@ final class GameState {
     var shockwaves: [Shockwave] = []  // expanding ring FX
     // Bullets
     var bullets: [Bullet] = []
-    var pointsPerKill: Int = 20
     
     // Score multiplier (from near-misses)
     var scoreMultiplier: Double = 1.0
     private let maxMultiplier: Double = 3.0
     private let nearMissBoost: Double = 0.25
     private let multiplierDecayPerSec: Double = 0.25
-
+    
     // Firing cadence
     private var fireAccumulator: TimeInterval = 0
     var fireRate: Double = 6.0  // shots per second (tune 5–10)
@@ -132,13 +131,13 @@ final class GameState {
         let fireInterval = 1.0 / fireRate
         while fireAccumulator >= fireInterval {
             fireAccumulator -= fireInterval
-
+            
             let p = playerPosition()
             let dir = Vector2(x: worldCenter.x - p.x,
                               y: worldCenter.y - p.y).normalized()
             let speed: CGFloat = 420
             let vel = dir * speed
-
+            
             bullets.append(Bullet(
                 pos: .init(x: p.x, y: p.y),
                 vel: vel,
@@ -267,23 +266,40 @@ final class GameState {
             }
         }
         
+        let ship = Vector2(x: playerPosition().x, y: playerPosition().y)
+        for i in asteroids.indices where asteroids[i].type == .evader {
+            let away = (asteroids[i].pos - ship).normalized()
+            let evade: CGFloat = 40   // tweak feel (30–60 works well)
+            asteroids[i].pos.x += away.x * evade * dt
+            asteroids[i].pos.y += away.y * evade * dt
+        }
+        
         // --- Bullet hits ---
         if !bullets.isEmpty && !asteroids.isEmpty {
             for bi in bullets.indices where bullets[bi].life > 0 {
                 for ai in asteroids.indices where asteroids[ai].alive {
                     if asteroids[ai].pos.distance(to: bullets[bi].pos) <
                         (asteroids[ai].size + bullets[bi].size) {
-
-                        bullets[bi].life = 0
-                        asteroids[ai].alive = false
                         
-                        let gained = Int(Double(pointsPerKill) * scoreMultiplier)
-                        score += gained
+                        bullets[bi].life = 0
+                        asteroids[ai].hp -= 1
                         
                         emitBurst(at: CGPoint(x: CGFloat(asteroids[ai].pos.x),
                                               y: CGFloat(asteroids[ai].pos.y)),
-                                  count: 8, speed: 80...160)
-                        SoundSynth.shared.pickup()
+                                  count: 8,
+                                  speed: 80...160,
+                                  color: asteroids[ai].type.color)
+                        if asteroids[ai].hp <= 0 {
+                            asteroids[ai].alive = false
+                            // (Your scoring code stays as-is; it will award on death.)
+                            let base = asteroids[ai].type.scoreValue
+                            let gained = Int(Double(base) * scoreMultiplier)
+                            score += gained
+                            SoundSynth.shared.pickup()
+                        } else {
+                            // Optional: a lighter “hit” sound for non-lethal hits
+                            SoundSynth.shared.nearMiss()
+                        }
                         break
                     }
                 }
@@ -349,6 +365,7 @@ final class GameState {
     
     // MARK: - Spawns & FX
     func spawnAsteroid(size: CGSize) {
+        // Spawn from a random edge
         let edge = Int.random(in: 0..<4)
         var pos = CGPoint.zero
         switch edge {
@@ -357,25 +374,63 @@ final class GameState {
         case 2: pos = CGPoint(x: CGFloat.random(in: 0...size.width), y: size.height + 20)
         default: pos = CGPoint(x: -20, y: CGFloat.random(in: 0...size.height))
         }
-        let target = CGPoint(x: worldCenter.x + CGFloat.random(in: -40...40),
-                             y: worldCenter.y + CGFloat.random(in: -40...40))
+        
+        // Weighted type selection
+        let r = Double.random(in: 0...1)
+        let type: EnemyType = (r < 0.65) ? .small : (r < 0.90) ? .big : .evader
+        
+        // Aim roughly at the center (with a little randomness)
+        let jitter: CGFloat = 40
+        let target = CGPoint(
+            x: worldCenter.x + CGFloat.random(in: -jitter...jitter),
+            y: worldCenter.y + CGFloat.random(in: -jitter...jitter)
+        )
         let dir = CGVector(dx: target.x - pos.x, dy: target.y - pos.y)
         let len = max(1, sqrt(dir.dx*dir.dx + dir.dy*dir.dy))
-        let speed = CGFloat.random(in: 60...160)
+        
+        // Type-specific stats
+        let speed: CGFloat
+        let hp: Int
+        let radius: CGFloat
+        switch type {
+        case .small:
+            speed = CGFloat.random(in: 100...170)
+            hp = 1
+            radius = 10
+        case .big:
+            speed = CGFloat.random(in: 60...110)
+            hp = 3
+            radius = 18
+        case .evader:
+            speed = CGFloat.random(in: 100...160)
+            hp = 2
+            radius = 12
+        }
+        
         let vel = Vector2(x: (dir.dx/len) * speed, y: (dir.dy/len) * speed)
-        asteroids.append(Asteroid(pos: .init(x: pos.x, y: pos.y),
-                                  vel: vel,
-                                  size: CGFloat.random(in: 10...22)))
+        
+        asteroids.append(Asteroid(
+            pos: .init(x: pos.x, y: pos.y),
+            vel: vel,
+            size: radius,
+            alive: true,
+            type: type,
+            hp: hp
+        ))
     }
     
-    func emitBurst(at p: CGPoint, count: Int = 12, speed: ClosedRange<CGFloat> = 90...180) {
+    func emitBurst(at p: CGPoint,
+                   count: Int = 12,
+                   speed: ClosedRange<CGFloat> = 90...180,
+                   color: Color = .white) {
         for _ in 0..<count {
             let a = CGFloat.random(in: 0...(2*CGFloat.pi))
             let s = CGFloat.random(in: speed)
             particles.append(Particle(
                 pos: .init(x: p.x, y: p.y),
                 vel: .init(x: cos(a)*s, y: sin(a)*s),
-                life: 1
+                life: 1,
+                color: color
             ))
         }
     }

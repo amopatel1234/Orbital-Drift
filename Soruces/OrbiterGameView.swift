@@ -82,7 +82,7 @@ struct OrbiterGameView: View {
                                 let rect = CGRect(x: a.pos.x - a.size, y: a.pos.y - a.size,
                                                   width: a.size*2, height: a.size*2)
                                 context.fill(Path(ellipseIn: rect),
-                                             with: .color(.white.opacity(0.85)))
+                                             with: .color(a.type.color))
                             }
 
                             // Powerups
@@ -98,7 +98,7 @@ struct OrbiterGameView: View {
                                 let alpha = max(0, Double(p.life))
                                 let r: CGFloat = 2 + (1 - p.life) * 2
                                 let rect = CGRect(x: p.pos.x - r, y: p.pos.y - r, width: r*2, height: r*2)
-                                context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
+                                context.fill(Path(ellipseIn: rect), with: .color(p.color.opacity(alpha)))
                             }
 
                             // Bullets
