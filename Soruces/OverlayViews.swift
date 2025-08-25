@@ -25,12 +25,14 @@ struct BigButton: View {
 struct PauseCard: View {
     let resume: () -> Void
     let restart: () -> Void
+    let mainMenu: () -> Void
     var body: some View {
         VStack(spacing: 12) {
             Text("Paused").font(.title2.bold())
             HStack {
                 Button("Resume", action: resume).buttonStyle(.borderedProminent)
                 Button("Restart", action: restart).buttonStyle(.bordered)
+                Button("Main Menu", action: mainMenu).buttonStyle(.bordered)
             }
         }
         .padding()
