@@ -183,6 +183,14 @@ struct OrbiterGameView: View {
                 Text("Score \(game.score)")
                     .font(.system(.headline, design: .rounded))
                     .monospacedDigit()
+                
+                if game.scoreMultiplier > 1.0 {
+                    Text(String(format: "x%.2f", game.scoreMultiplier))
+                        .font(.headline.monospacedDigit())
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .accessibilityLabel(Text("Multiplier \(String(format: "%.2f", game.scoreMultiplier))"))
+                }
 
                 if game.shieldCharges > 0 {
                     HStack(spacing: 6) {
@@ -212,8 +220,15 @@ struct OrbiterGameView: View {
                 BigButton(title: "Start") { game.reset(in: size) }
             case .paused:
                 PauseCard(
-                    resume: { game.togglePause() },
-                    restart: { game.reset(in: size) }
+                    resume: {
+                        game.togglePause()
+                    },
+                    restart: {
+                        game.reset(in: size)
+                    },
+                    mainMenu: {
+                        router.backToRoot()
+                    }
                 )
             case .gameOver:
                 GameOverCard(

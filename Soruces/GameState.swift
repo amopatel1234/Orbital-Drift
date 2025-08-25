@@ -24,6 +24,13 @@ final class GameState {
     var shockwaves: [Shockwave] = []  // expanding ring FX
     // Bullets
     var bullets: [Bullet] = []
+    var pointsPerKill: Int = 20
+    
+    // Score multiplier (from near-misses)
+    var scoreMultiplier: Double = 1.0
+    private let maxMultiplier: Double = 3.0
+    private let nearMissBoost: Double = 0.25
+    private let multiplierDecayPerSec: Double = 0.25
 
     // Firing cadence
     private var fireAccumulator: TimeInterval = 0
@@ -98,6 +105,7 @@ final class GameState {
         spawnAccumulator = 0
         powerupTimer = 0
         scoreAccumulator = 0
+        scoreMultiplier = 1.0
         lastUpdate = 0
         
         phase = .playing
@@ -113,6 +121,11 @@ final class GameState {
         var dt = now - lastUpdate
         lastUpdate = now
         dt = min(max(dt, 0), 1.0/30.0) // clamp big spikes
+        
+        // Decay multiplier gently back toward 1
+        if scoreMultiplier > 1.0 {
+            scoreMultiplier = max(1.0, scoreMultiplier - multiplierDecayPerSec * dt)
+        }
         
         // --- Auto-fire toward world center ---
         fireAccumulator += dt
@@ -241,7 +254,8 @@ final class GameState {
                 }
             } else if d < hitDist + nearMissThreshold, now - lastNearMissAt > 0.35 {
                 lastNearMissAt = now
-                score += 5
+                // Increase multiplier instead of flat points
+                scoreMultiplier = min(maxMultiplier, scoreMultiplier + nearMissBoost)
                 nearMissFlash = 1
                 withAnimation(.easeOut(duration: 0.25)) { shake = 6 }
                 Haptics.shared.nearMiss()
@@ -262,6 +276,10 @@ final class GameState {
 
                         bullets[bi].life = 0
                         asteroids[ai].alive = false
+                        
+                        let gained = Int(Double(pointsPerKill) * scoreMultiplier)
+                        score += gained
+                        
                         emitBurst(at: CGPoint(x: CGFloat(asteroids[ai].pos.x),
                                               y: CGFloat(asteroids[ai].pos.y)),
                                   count: 8, speed: 80...160)
@@ -296,14 +314,6 @@ final class GameState {
             UserDefaults.standard.set(highScore, forKey: "highScore")
             Haptics.shared.crash()
             SoundSynth.shared.crash()
-        }
-        
-        // Score pulse (no tick sound to avoid metronome feel)
-        scoreAccumulator += dt
-        if scoreAccumulator >= 0.5 {
-            scoreAccumulator = 0
-            score += 5
-            Haptics.shared.scoreTick()
         }
         
         // Fade juice
