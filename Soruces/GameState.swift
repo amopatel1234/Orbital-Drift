@@ -80,6 +80,18 @@ final class GameState {
     // Near-miss
     private let nearMissThreshold: CGFloat = 14
     private var lastNearMissAt: TimeInterval = 0
+
+    // Frame-time smoothing (EMA)
+    private var emaFrameMs: Double = 16.7   // start near 60fps
+    var debugFrameMs: Double {
+        emaFrameMs
+    }
+    private let emaAlpha: Double = 0.12
+    private let targetFrameMs: Double = 16.7 // aim for 60fps budget
+
+    // Auto particle budget (0.3 ... 1.0)
+    var particleBudgetScale: CGFloat = 1.0
+    let maxParticles: Int = 800
     
     // MARK: - Lifecycle
     func reset(in size: CGSize) {
@@ -118,10 +130,26 @@ final class GameState {
             lastUpdate = now
             return
         }
-        if lastUpdate == 0 { lastUpdate = now }
-        var dt = now - lastUpdate
+
+        if lastUpdate == 0 {
+            lastUpdate = now
+        }
+        let rawDt = now - lastUpdate        // un-clamped
         lastUpdate = now
-        dt = min(max(dt, 0), 1.0/30.0) // clamp big spikes
+
+        // Clamp for simulation stability (as before)
+        var dt = rawDt
+        dt = min(max(dt, 0), 1.0/30.0)
+
+        // --- Perf: EMA frame time (ms) & budget ---
+        let ms = rawDt * 1000.0
+        emaFrameMs = emaFrameMs * (1.0 - emaAlpha) + ms * emaAlpha
+
+        // Budget scale rises toward 1 when under budget, dips when over
+        let target = targetFrameMs
+        let scale = max(0.3, min(1.0, target / max(1.0, emaFrameMs)))
+        // Ease changes a bit to avoid pops
+        particleBudgetScale = particleBudgetScale * 0.85 + CGFloat(scale) * 0.15
         
         // Decay multiplier gently back toward 1
         if scoreMultiplier > 1.0 {
@@ -434,7 +462,10 @@ final class GameState {
                    count: Int = 12,
                    speed: ClosedRange<CGFloat> = 90...180,
                    color: Color = .white) {
-        for _ in 0..<count {
+        // Scale count by current budget (ceil so at least 1 when asked)
+        let scaled = max(1, Int(ceil(CGFloat(count) * particleBudgetScale)))
+
+        for _ in 0..<scaled {
             let a = CGFloat.random(in: 0...(2*CGFloat.pi))
             let s = CGFloat.random(in: speed)
             particles.append(Particle(
@@ -443,6 +474,12 @@ final class GameState {
                 life: 1,
                 color: color
             ))
+        }
+
+        // Soft cap to avoid runaway
+        if particles.count > maxParticles {
+            let overflow = particles.count - maxParticles
+            particles.removeFirst(overflow)
         }
     }
     

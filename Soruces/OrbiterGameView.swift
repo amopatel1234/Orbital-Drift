@@ -17,6 +17,9 @@ struct OrbiterGameView: View {
 
     @State private var size: CGSize = .zero
     @State private var loopTask: Task<Void, Never>? = nil
+    
+    @AppStorage("debugEnabled") private var debugEnabled = false
+    @AppStorage("debugDrawHitboxes") private var debugDrawHitboxes = true
 
     var body: some View {
         ZStack {
@@ -29,6 +32,7 @@ struct OrbiterGameView: View {
                     EnemiesCanvas(game: game)
                     BulletsCanvas(game: game)
                     FXCanvas(game: game)
+                    DebugCanvas(game: game, drawHitboxes: debugDrawHitboxes)
                 }
                 .screenShake(game.shake)
                 .contentShape(Rectangle()) // for gestures
@@ -52,6 +56,18 @@ struct OrbiterGameView: View {
                 }
             }
 
+            if debugEnabled {
+                DevMeter(
+                    fps: max(1, 1000.0 / game.debugFrameMs),               // derived
+                    frameMs: game.debugFrameMs,
+                    counts: (game.asteroids.count, game.bullets.count, game.particles.count),
+                    scale: game.particleBudgetScale
+                )
+                .padding(.leading, 12)
+                .padding(.bottom, game.phase == .playing ? 12 : 140)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+            
             overlayUI
         }
         .onChange(of: game.phase) {
@@ -294,5 +310,66 @@ private struct FXCanvas: View {
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+private struct DebugCanvas: View {
+    let game: GameState
+    let drawHitboxes: Bool
+
+    var body: some View {
+        Canvas { context, _ in
+            guard drawHitboxes else { return }
+
+            // Player
+            let pp = game.playerPosition()
+            let pr = game.player.size
+            context.stroke(Path(ellipseIn: .init(x: pp.x - pr, y: pp.y - pr, width: pr*2, height: pr*2)),
+                           with: .color(.green.opacity(0.8)), lineWidth: 1)
+
+            // Enemies
+            for a in game.asteroids where a.alive {
+                let r = a.size
+                context.stroke(Path(ellipseIn: .init(x: a.pos.x - r, y: a.pos.y - r, width: r*2, height: r*2)),
+                               with: .color(.yellow.opacity(0.8)), lineWidth: 1)
+            }
+
+            // Bullets
+            for b in game.bullets {
+                let r = b.size
+                context.stroke(Path(ellipseIn: .init(x: CGFloat(b.pos.x) - r, y: CGFloat(b.pos.y) - r, width: r*2, height: r*2)),
+                               with: .color(.cyan.opacity(0.8)), lineWidth: 1)
+            }
+
+            // Power-ups
+            for p in game.powerups {
+                let r = p.size
+                context.stroke(Path(ellipseIn: .init(x: p.pos.x - r, y: p.pos.y - r, width: r*2, height: r*2)),
+                               with: .color(.orange.opacity(0.9)), lineWidth: 1)
+            }
+        }
+        .allowsHitTesting(false)
+        .opacity(drawHitboxes ? 1 : 0)
+    }
+}
+
+private struct DevMeter: View {
+    let fps: Double
+    let frameMs: Double
+    let counts: (enemies: Int, bullets: Int, particles: Int)
+    let scale: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(String(format: "FPS %.0f  (%.1f ms)", fps, frameMs))
+            Text("Enemies \(counts.enemies)  Bullets \(counts.bullets)")
+            Text(String(format: "Particles %d  Budget x%.2f", counts.particles, scale))
+        }
+        .font(.system(.caption2, design: .monospaced))
+        .padding(8)
+        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .foregroundStyle(.white)
+        .padding(.leading, 12)
+        .padding(.top, 12)
     }
 }

@@ -14,6 +14,8 @@ struct SettingsView: View {
     @AppStorage("hapticsEnabled") var hapticsEnabled: Bool = true
     @AppStorage("seenTutorial") private var seenTutorial = false
     @AppStorage("musicEnabled") private var musicEnabled: Bool = true
+    @AppStorage("debugEnabled") private var debugEnabled = false
+    @AppStorage("debugDrawHitboxes") private var debugDrawHitboxes = true
     @State private var confirmReset = false
 
     var body: some View {
@@ -47,6 +49,10 @@ struct SettingsView: View {
                             MusicLoop.shared.stop()
                         }
                     }
+            }
+            Section("Dev Controls") {
+                Toggle("Enable Debug Overlay", isOn: $debugEnabled)
+                Toggle("Show Collision Hitboxes", isOn: $debugDrawHitboxes)
             }
             Section("About") {
                 LabeledContent("Version",

@@ -16,11 +16,8 @@ enum DisplayLinkAsync {
             // Create + configure the CADisplayLink on the main actor.
             Task { @MainActor in
                 let link = CADisplayLink(target: box, selector: #selector(Box.tick(_:)))
-                if #available(iOS 15.0, *) {
-                    link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 0)
-                } else {
-                    link.preferredFramesPerSecond = 0 // automatic
-                }
+                link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 0)
+
                 link.add(to: .main, forMode: .common)
                 box.setLink(link) // now called on the main actor ✅
             }
