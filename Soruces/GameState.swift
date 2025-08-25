@@ -67,6 +67,18 @@ final class GameState {
     private let maxTurnRate: CGFloat = 4.2      // radians/sec (angular speed toward target)
     private let maxRadialSpeed: CGFloat = 180   // px/sec (radius change speed)
     
+    // MARK: - Hold-to-control flags
+    var holdRotateCW: Bool = false       // left zone pressed
+    var holdInnerRadius: Bool = false    // right zone pressed
+
+    // Tunables
+    var maxAngularSpeed: CGFloat = 2.8   // rad/s while held
+    var radiusLerp: CGFloat = 0.12       // 0..1 smoothing per tick
+    
+    // MARK: - Orbit bounds
+    let minOrbit: CGFloat = 60    // innermost orbit radius (tweak to taste)
+    let maxOrbit: CGFloat = 200   // outermost orbit radius (tweak to taste)
+    
     // MARK: - Timing
     private var lastUpdate: TimeInterval = 0
     private var spawnAccumulator: TimeInterval = 0
@@ -180,16 +192,15 @@ final class GameState {
         // Tick invulnerability
         if invulnerability > 0 { invulnerability = max(0, invulnerability - dt) }
         
-        // Smoothly steer toward targets (prevents teleporting)
-        let dAngle = shortestAngleDiff(from: player.angle, to: targetAngle)
-        let maxStep = maxTurnRate * dt
-        let step = max(min(dAngle, maxStep), -maxStep)
-        player.angle = normalizeAngle(player.angle + step)
-        
-        let dRad = targetRadius - player.radius
-        let maxRadStep = maxRadialSpeed * dt
-        let rStep = max(min(dRad, maxRadStep), -maxRadStep)
-        player.radius += rStep
+        // === Hold-to-rotate (left) ===
+        // NOTE: if your positive angle is CCW (usual), use a NEGATIVE step for CW.
+        if holdRotateCW {
+            player.angle += (-maxAngularSpeed) * CGFloat(dt)   // CW
+        }
+
+        // === Hold-to-radius (right) ===
+        targetRadius = holdInnerRadius ? minOrbit : maxOrbit
+        player.radius = player.radius + (targetRadius - player.radius) * radiusLerp
         
         // Move asteroids
         for i in asteroids.indices {
