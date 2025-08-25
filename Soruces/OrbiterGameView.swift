@@ -33,53 +33,10 @@ struct OrbiterGameView: View {
                     BulletsCanvas(game: game)
                     FXCanvas(game: game)
                     DebugCanvas(game: game, drawHitboxes: debugDrawHitboxes)
-                    
-                    // --- Two transparent control zones ---
-                    HStack(spacing: 0) {
-                        // LEFT: ANGLE CONTROL
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity,
-                                                pressing: { pressing in
-                                                    game.holdRotateCW = pressing
-                                                },
-                                                perform: {})
-
-                        // RIGHT: move to inner orbit while held
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity,
-                                                pressing: { pressing in
-                                                    game.holdInnerRadius = pressing
-                                                },
-                                                perform: {})
-
-                    }
-                    .allowsHitTesting(true)
-                    // Optional: faint visual hints while debugging
-                    .overlay(
-                        Group {
-#if DEBUG
-                            VStack {
-                                Text("Rotate").font(.caption2)
-                                Spacer()
-                                Text("CW").font(.caption2)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                            VStack {
-                                Text("Outer").font(.caption2)
-                                Spacer()
-                                Text("Inner").font(.caption2)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .padding()
-#endif
-                        }
-                    )
-                    
-                    
-                    
+                    // Controls (bottom corners)
+                    ControlsOverlay(game: game)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 0) // adjust if it collides with your cards
                 }
                 .screenShake(game.shake)
                 .contentShape(Rectangle()) // for gestures
@@ -413,5 +370,71 @@ private struct DevMeter: View {
         .foregroundStyle(.white)
         .padding(.leading, 12)
         .padding(.top, 12)
+    }
+}
+
+private struct PressHoldButton: View {
+    let systemImage: String
+    let label: String
+    let onPressChanged: (Bool) -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+
+        Text(Image(systemName: systemImage))  // icon only; label unused for now
+            .font(.title2.weight(.semibold))
+            .frame(width: 54, height: 54)
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(shape.stroke(.white.opacity(isPressed ? 0.8 : 0.25), lineWidth: 1))
+            .shadow(radius: isPressed ? 0 : 4)
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .contentShape(shape)
+            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity,
+                                pressing: { pressing in
+                                    if pressing != isPressed {
+                                        isPressed = pressing
+                                        onPressChanged(pressing)
+                                    }
+                                },
+                                perform: {})
+            // Nice haptic when press begins
+            .sensoryFeedback(.impact(weight: .light),
+                             trigger: isPressed)
+    }
+}
+
+private struct ControlsOverlay: View {
+    @Bindable var game: GameState   // @Observable model
+
+    var body: some View {
+        HStack {
+            // LEFT STACK: CCW on top, CW on bottom (thumb-friendly)
+            VStack(spacing: 10) {
+                PressHoldButton(systemImage: "arrow.counterclockwise", label: "CCW") {
+                    game.holdRotateCCW = $0
+                }
+                PressHoldButton(systemImage: "arrow.clockwise", label: "CW") {
+                    game.holdRotateCW = $0
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // RIGHT STACK: OUT on top, IN on bottom
+            VStack(spacing: 10) {
+                // RIGHT stack
+                PressHoldButton(systemImage: "arrow.up.to.line.compact", label: "OUT") {
+                    game.setOuterPress($0)
+                }
+                PressHoldButton(systemImage: "arrow.down.to.line.compact", label: "IN") {
+                    game.setInnerPress($0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 18)
+        .allowsHitTesting(true)
     }
 }
