@@ -147,11 +147,19 @@
 				3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */,
 				3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */,
 				3B9D9EAC2E5A30E1006281F0 /* OrbiterGameView.swift */,
-				3B9D9EAB2E5A30D8006281F0 /* GameState.swift */,
+				3B9D9EFC2E5CDF0E006281F0 /* GameState */,
 				3B9D9EAA2E5A30C2006281F0 /* GameModels.swift */,
 				3B9D9EFA2E5B934D006281F0 /* Vector2.swift */,
 			);
 			path = Soruces;
+			sourceTree = "<group>";
+		};
+		3B9D9EFC2E5CDF0E006281F0 /* GameState */ = {
+			isa = PBXGroup;
+			children = (
+				3B9D9EAB2E5A30D8006281F0 /* GameState.swift */,
+			);
+			path = GameState;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
