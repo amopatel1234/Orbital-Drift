@@ -17,6 +17,8 @@ final class GameState {
     var score: Int = 0
     var highScore: Int = UserDefaults.standard.integer(forKey: "highScore")
     
+    var toasts: [KillToast] = []
+    
     var player = Player()
     var asteroids: [Asteroid] = []
     var particles: [Particle] = []
@@ -144,6 +146,7 @@ final class GameState {
                 life: 1.2,
                 size: 3.5
             ))
+            emitBurst(at: p, count: 4, speed: 120...220)   // tiny white spark when shooting
         }
         
         // Tick invulnerability
@@ -214,6 +217,10 @@ final class GameState {
             shockwaves[i].age += CGFloat(dt * 1.6)
         }
         shockwaves.removeAll { $0.age >= 1 }
+        
+        // --- Kill toast update ---
+        for i in toasts.indices { toasts[i].age += CGFloat(dt) }
+        toasts.removeAll { $0.age >= $0.lifetime }
         
         // Collisions + near-miss
         let playerPos = playerPosition()
@@ -292,9 +299,13 @@ final class GameState {
                         if asteroids[ai].hp <= 0 {
                             asteroids[ai].alive = false
                             // (Your scoring code stays as-is; it will award on death.)
-                            let base = asteroids[ai].type.scoreValue
+                            let base = asteroids[ai].type.scoreValue 
                             let gained = Int(Double(base) * scoreMultiplier)
                             score += gained
+
+                            let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x), y: CGFloat(asteroids[ai].pos.y))
+                            emitKillToast(at: hitPoint, value: gained, color: asteroids[ai].type.color)
+
                             SoundSynth.shared.pickup()
                         } else {
                             // Optional: a lighter “hit” sound for non-lethal hits
@@ -437,6 +448,10 @@ final class GameState {
     
     func emitShockwave(at p: CGPoint, maxRadius: CGFloat = 80) {
         shockwaves.append(Shockwave(pos: .init(x: p.x, y: p.y), age: 0, maxRadius: maxRadius))
+    }
+    
+    func emitKillToast(at p: CGPoint, value: Int, color: Color) {
+        toasts.append(KillToast(pos: .init(x: p.x, y: p.y), value: value, color: color))
     }
     
     // MARK: - Geometry

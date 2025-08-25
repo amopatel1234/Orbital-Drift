@@ -73,6 +73,15 @@ struct Particle: Identifiable {
     var color: Color = .white
 }
 
+struct KillToast: Identifiable {
+    let id = UUID()
+    var pos: Vector2           // spawn position (world coords)
+    var value: Int             // points to show
+    var color: Color           // matches enemy color
+    var age: CGFloat = 0       // seconds since spawn
+    var lifetime: CGFloat = 0.6
+}
+
 struct Powerup: Identifiable {
     let id = UUID()
     var pos: Vector2
