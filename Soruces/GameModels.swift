@@ -9,19 +9,6 @@
 import SwiftUI
 import CoreGraphics
 
-// MARK: - Math
-
-struct Vector2: Hashable {
-    var x: CGFloat
-    var y: CGFloat
-    static let zero = Vector2(x: 0, y: 0)
-    var cgPoint: CGPoint { .init(x: x, y: y) }
-
-    static func -(lhs: Vector2, rhs: Vector2) -> Vector2 { .init(x: lhs.x - rhs.x, y: lhs.y - rhs.y) }
-    static func +(lhs: Vector2, rhs: Vector2) -> Vector2 { .init(x: lhs.x + rhs.x, y: lhs.y + rhs.y) }
-    func length() -> CGFloat { sqrt(x*x + y*y) }
-}
-
 // MARK: - Entities
 
 struct Player {
@@ -29,6 +16,15 @@ struct Player {
     var radius: CGFloat = 120
     let size: CGFloat = 14
     var isAlive: Bool = true
+}
+
+
+struct Bullet: Identifiable {
+    let id = UUID()
+    var pos: Vector2
+    var vel: Vector2
+    var life: CGFloat = 1.2     // seconds before auto-despawn
+    var size: CGFloat = 3.5
 }
 
 struct Asteroid: Identifiable {
@@ -85,4 +81,9 @@ enum Theme: String, CaseIterable, Identifiable {
 
 // MARK: - Phases
 
-enum GamePhase { case menu, playing, gameOver, paused }
+enum GamePhase {
+    case menu
+    case playing
+    case gameOver
+    case paused
+}

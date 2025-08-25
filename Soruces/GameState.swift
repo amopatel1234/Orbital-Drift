@@ -22,6 +22,12 @@ final class GameState {
     var particles: [Particle] = []
     var powerups: [Powerup] = []
     var shockwaves: [Shockwave] = []  // expanding ring FX
+    // Bullets
+    var bullets: [Bullet] = []
+
+    // Firing cadence
+    private var fireAccumulator: TimeInterval = 0
+    var fireRate: Double = 6.0  // shots per second (tune 5–10)
     
     // Shields / i-frames
     var shieldCharges: Int = 0
@@ -76,6 +82,9 @@ final class GameState {
         targetRadius = player.radius
         isGrabbing = false
         
+        bullets.removeAll()
+        fireAccumulator = 0
+        
         asteroids.removeAll()
         particles.removeAll()
         powerups.removeAll()
@@ -105,6 +114,26 @@ final class GameState {
         lastUpdate = now
         dt = min(max(dt, 0), 1.0/30.0) // clamp big spikes
         
+        // --- Auto-fire toward world center ---
+        fireAccumulator += dt
+        let fireInterval = 1.0 / fireRate
+        while fireAccumulator >= fireInterval {
+            fireAccumulator -= fireInterval
+
+            let p = playerPosition()
+            let dir = Vector2(x: worldCenter.x - p.x,
+                              y: worldCenter.y - p.y).normalized()
+            let speed: CGFloat = 420
+            let vel = dir * speed
+
+            bullets.append(Bullet(
+                pos: .init(x: p.x, y: p.y),
+                vel: vel,
+                life: 1.2,
+                size: 3.5
+            ))
+        }
+        
         // Tick invulnerability
         if invulnerability > 0 { invulnerability = max(0, invulnerability - dt) }
         
@@ -124,6 +153,13 @@ final class GameState {
             asteroids[i].pos.x += asteroids[i].vel.x * dt
             asteroids[i].pos.y += asteroids[i].vel.y * dt
         }
+        
+        // --- Bullets step ---
+        for i in bullets.indices {
+            bullets[i].pos = bullets[i].pos + bullets[i].vel * dt
+            bullets[i].life -= CGFloat(dt)
+        }
+        bullets.removeAll { $0.life <= 0 }
         
         // Cull off-screen or dead
         let pad: CGFloat = 60
@@ -214,6 +250,25 @@ final class GameState {
                 
                 // belt-and-suspenders: stay in playing
                 if phase != .playing { phase = .playing }
+            }
+        }
+        
+        // --- Bullet hits ---
+        if !bullets.isEmpty && !asteroids.isEmpty {
+            for bi in bullets.indices where bullets[bi].life > 0 {
+                for ai in asteroids.indices where asteroids[ai].alive {
+                    if asteroids[ai].pos.distance(to: bullets[bi].pos) <
+                        (asteroids[ai].size + bullets[bi].size) {
+
+                        bullets[bi].life = 0
+                        asteroids[ai].alive = false
+                        emitBurst(at: CGPoint(x: CGFloat(asteroids[ai].pos.x),
+                                              y: CGFloat(asteroids[ai].pos.y)),
+                                  count: 8, speed: 80...160)
+                        SoundSynth.shared.pickup()
+                        break
+                    }
+                }
             }
         }
         

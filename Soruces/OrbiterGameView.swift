@@ -101,6 +101,17 @@ struct OrbiterGameView: View {
                                 context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
                             }
 
+                            // Bullets
+                            for b in game.bullets {
+                                let r = b.size
+                                let rect = CGRect(
+                                    x: CGFloat(b.pos.x) - r,
+                                    y: CGFloat(b.pos.y) - r,
+                                    width: r * 2, height: r * 2
+                                )
+                                context.fill(Path(ellipseIn: rect), with: .color(.white))
+                            }
+                            
                             // Shockwaves (expanding rings at hit location)
                             for w in game.shockwaves {
                                 let center = CGPoint(x: CGFloat(w.pos.x), y: CGFloat(w.pos.y))
