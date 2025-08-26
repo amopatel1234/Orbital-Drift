@@ -29,9 +29,8 @@ final class GameState {
     
     // Score multiplier (from near-misses)
     var scoreMultiplier: Double = 1.0
-    private let maxMultiplier: Double = 3.0
-    private let nearMissBoost: Double = 0.25
-    private let multiplierDecayPerSec: Double = 0.25
+    private let maxMultiplier: Double = 10.0
+    private let multiplierDecayPerSec: Double = 0.08
     
     // Firing cadence
     private var fireAccumulator: TimeInterval = 0
@@ -48,7 +47,6 @@ final class GameState {
     
     // Juice
     var shake: CGFloat = 0
-    var nearMissFlash: Double = 0
     
     /// For pulsing shield halo in the renderer
     var invulnerabilityPulse: Double {
@@ -111,10 +109,6 @@ final class GameState {
     var rampDuration: Double = 60
     /// Grace period with lighter cap
     var gracePeriod: Double = 8
-    
-    // Near-miss
-    private let nearMissThreshold: CGFloat = 14
-    private var lastNearMissAt: TimeInterval = 0
 
     // Frame-time smoothing (EMA)
     private var emaFrameMs: Double = 16.7   // start near 60fps
@@ -371,18 +365,6 @@ final class GameState {
                     collided = true
                     break
                 }
-            } else if d < hitDist + nearMissThreshold, now - lastNearMissAt > 0.35 {
-                lastNearMissAt = now
-                // Increase multiplier instead of flat points
-                scoreMultiplier = min(maxMultiplier, scoreMultiplier + nearMissBoost)
-                nearMissFlash = 1
-                withAnimation(.easeOut(duration: 0.25)) { shake = 6 }
-                Haptics.shared.nearMiss()
-                SoundSynth.shared.nearMiss()
-                emitBurst(at: playerPos, count: 6, speed: 50...120)
-                
-                // belt-and-suspenders: stay in playing
-                if phase != .playing { phase = .playing }
             }
         }
         
@@ -411,11 +393,15 @@ final class GameState {
                                   color: asteroids[ai].type.color)
                         if asteroids[ai].hp <= 0 {
                             asteroids[ai].alive = false
-                            // (Your scoring code stays as-is; it will award on death.)
-                            let base = asteroids[ai].type.scoreValue 
+                            // 1) Score first (based on *current* multiplier)
+                            let base = asteroids[ai].type.scoreValue
                             let gained = Int(Double(base) * scoreMultiplier)
                             score += gained
 
+                            // 2) Then bump multiplier based on enemy difficulty
+                            let boost = multiplierBoost(for: asteroids[ai].type)
+                            scoreMultiplier = min(maxMultiplier, scoreMultiplier + boost)
+                            
                             let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x), y: CGFloat(asteroids[ai].pos.y))
                             emitKillToast(at: hitPoint, value: gained, color: asteroids[ai].type.color)
 
@@ -457,7 +443,6 @@ final class GameState {
         }
         
         // Fade juice
-        nearMissFlash = max(0, nearMissFlash - dt*3.0)
         shake = max(0, shake - CGFloat(dt*16))
     }
     
@@ -601,5 +586,13 @@ final class GameState {
     func setOuterPress(_ pressing: Bool) {
         holdOuterRadius = pressing
         targetRadius = pressing ? maxOrbit : player.radius   // release: lock to current
+    }
+    
+    private func multiplierBoost(for type: EnemyType) -> Double {
+        switch type {
+        case .small:  return 0.12   // easiest → smallest boost
+        case .evader: return 0.18   // medium
+        case .big:    return 0.25   // hardest → biggest boost
+        }
     }
 }
