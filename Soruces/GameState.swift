@@ -125,6 +125,8 @@ final class GameState {
     var particleBudgetScale: CGFloat = 1.0
     let maxParticles: Int = 800
     
+    private enum KillBurstStyle { case radial, directionalOutward }
+    
     // MARK: - Lifecycle
     func reset(in size: CGSize) {
         worldCenter = CGPoint(x: size.width/2, y: size.height/2)
@@ -394,6 +396,19 @@ final class GameState {
                                   count: 8,
                                   speed: 80...160,
                                   color: asteroids[ai].type.color)
+                        if asteroids[ai].hp > 0 {
+                            // small tap sparks in the incoming bullet direction
+                            let bp = bullets[bi].pos
+                            let dir = CGVector(dx: CGFloat(bullets[bi].vel.x), dy: CGFloat(bullets[bi].vel.y))
+                            emitDirectionalBurst(at: .init(x: CGFloat(bp.x), y: CGFloat(bp.y)),
+                                                 dir: dir,
+                                                 count: 5,
+                                                 spread: 0.25,
+                                                 speed: 80...140,
+                                                 life: 0.5,
+                                                 color: .white.opacity(0.9))
+                        }
+                        
                         if asteroids[ai].hp <= 0 {
                             asteroids[ai].alive = false
 
@@ -421,7 +436,10 @@ final class GameState {
                               shake = min(maxShake, shake + add)
 
                             
-                            let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x), y: CGFloat(asteroids[ai].pos.y))
+                            let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x),
+                                                   y: CGFloat(asteroids[ai].pos.y))
+
+                            emitKillBurst(at: hitPoint, for: asteroids[ai].type)
                             emitKillToast(at: hitPoint, value: gained, color: asteroids[ai].type.color)
 
                             SoundSynth.shared.pickup()
@@ -546,6 +564,45 @@ final class GameState {
         }
     }
     
+    /// Emits a particle burst biased toward a direction (for streaky looks).
+    /// - Parameters:
+    ///   - p: origin
+    ///   - dir: preferred direction (unit or not; we normalize)
+    ///   - count: number of particles
+    ///   - spread: radians of angular spread around `dir` (e.g. 0.35)
+    ///   - speed: speed range
+    ///   - life: particle lifetime (seconds)
+    ///   - color: particle color
+    func emitDirectionalBurst(at p: CGPoint,
+                              dir: CGVector,
+                              count: Int,
+                              spread: CGFloat,
+                              speed: ClosedRange<CGFloat>,
+                              life: CGFloat = 1.0,
+                              color: Color)
+    {
+        // normalize dir
+        let len = max(0.0001, sqrt(dir.dx*dir.dx + dir.dy*dir.dy))
+        let ux = dir.dx / len
+        let uy = dir.dy / len
+        let baseAngle = atan2(uy, ux)
+
+        let scaledCount = max(1, Int(ceil(CGFloat(count) * particleBudgetScale)))
+        for _ in 0..<scaledCount {
+            let a = baseAngle + CGFloat.random(in: -spread...spread)
+            let s = CGFloat.random(in: speed)
+            particles.append(Particle(
+                pos: .init(x: p.x, y: p.y),
+                vel: .init(x: cos(a)*s, y: sin(a)*s),
+                life: life,
+                color: color
+            ))
+        }
+        if particles.count > maxParticles {
+            particles.removeFirst(particles.count - maxParticles)
+        }
+    }
+    
     func emitShockwave(at p: CGPoint, maxRadius: CGFloat = 80) {
         shockwaves.append(Shockwave(pos: .init(x: p.x, y: p.y), age: 0, maxRadius: maxRadius))
     }
@@ -612,6 +669,46 @@ final class GameState {
         case .small:  return 0.12   // easiest → smallest boost
         case .evader: return 0.18   // medium
         case .big:    return 0.25   // hardest → biggest boost
+        }
+    }
+    
+    private func killBurstParams(for type: EnemyType) -> (count: Int,
+                                                          speed: ClosedRange<CGFloat>,
+                                                          life: CGFloat,
+                                                          color: Color,
+                                                          style: KillBurstStyle)
+    {
+        enum Style { case radial, directionalOutward }
+
+        switch type {
+        case .small:
+            return (count: 10, speed: 120...220, life: 0.7, color: .blue,   style: .radial)
+        case .evader:
+            return (count: 14, speed: 160...280, life: 0.9, color: .purple, style: .directionalOutward)
+        case .big:
+            return (count: 22, speed: 100...200, life: 1.2, color: .red,    style: .radial)
+        }
+    }
+
+    /// Convenience wrapper to emit a kill burst matching the enemy type.
+    /// Directional for evaders (streaky), radial for others (chunky).
+    func emitKillBurst(at p: CGPoint, for type: EnemyType) {
+        let preset = killBurstParams(for: type)
+        switch preset.style {
+        case .radial:
+            emitBurst(at: p, count: preset.count, speed: preset.speed, color: preset.color)
+        case .directionalOutward:
+            // outward from center for a “streak” look
+            let dx = p.x - worldCenter.x
+            let dy = p.y - worldCenter.y
+            let outward = CGVector(dx: dx, dy: dy)
+            emitDirectionalBurst(at: p,
+                                 dir: outward,
+                                 count: preset.count,
+                                 spread: 0.35,
+                                 speed: preset.speed,
+                                 life: preset.life,
+                                 color: preset.color)
         }
     }
 }
