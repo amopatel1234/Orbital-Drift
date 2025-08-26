@@ -96,13 +96,21 @@ final class GameState {
     
     // MARK: - Timing
     private var lastUpdate: TimeInterval = 0
-    private var spawnAccumulator: TimeInterval = 0
     private var powerupTimer: TimeInterval = 0
     private var scoreAccumulator: TimeInterval = 0
     
-    // MARK: - Difficulty
-    private var spawnInterval: TimeInterval = 0.9
-    private var minSpawnInterval: TimeInterval = 0.25
+    // MARK: - Spawn pacing
+    private var elapsed: TimeInterval = 0
+    private var spawnAcc: TimeInterval = 0
+
+    /// Base spawns-per-second at t=0
+    var baseSpawnRate: Double = 0.6
+    /// Extra spawns/sec added over the first `rampDuration` seconds
+    var rampSpawnBonus: Double = 1.2
+    /// Seconds to reach full ramp
+    var rampDuration: Double = 60
+    /// Grace period with lighter cap
+    var gracePeriod: Double = 8
     
     // Near-miss
     private let nearMissThreshold: CGFloat = 14
@@ -143,12 +151,13 @@ final class GameState {
         invulnerability = 0
         score = 0
         
-        spawnInterval = 0.9
-        spawnAccumulator = 0
         powerupTimer = 0
         scoreAccumulator = 0
         scoreMultiplier = 1.0
         lastUpdate = 0
+        
+        elapsed = 0
+        spawnAcc = 0
         
         phase = .playing
     }
@@ -170,6 +179,25 @@ final class GameState {
         var dt = rawDt
         dt = min(max(dt, 0), 1.0/30.0)
 
+        elapsed += dt
+
+        // Current spawn rate (spawns/sec), smoothly ramps up
+        let ramp = min(1.0, elapsed / rampDuration)
+        let spawnRate = baseSpawnRate + ramp * rampSpawnBonus
+        let spawnInterval = 1.0 / spawnRate
+
+        spawnAcc += dt
+
+        // Cap enemies; slightly lower cap during grace period
+        let cap = (elapsed < gracePeriod) ? max(3, maxEnemies(now: elapsed) - 2) : maxEnemies(now: elapsed)
+
+        while spawnAcc >= spawnInterval {
+            spawnAcc -= spawnInterval
+            if asteroids.count(where: { $0.alive }) < cap {
+                spawnAsteroid(size: size)
+            }
+        }
+        
         // --- Perf: EMA frame time (ms) & budget ---
         let ms = rawDt * 1000.0
         emaFrameMs = emaFrameMs * (1.0 - emaAlpha) + ms * emaAlpha
@@ -275,14 +303,6 @@ final class GameState {
             a.pos.x < -pad || a.pos.x > size.width + pad ||
             a.pos.y < -pad || a.pos.y > size.height + pad ||
             !a.alive
-        }
-        
-        // Spawn logic
-        spawnAccumulator += dt
-        if spawnAccumulator >= spawnInterval {
-            spawnAccumulator = 0
-            spawnAsteroid(size: size)
-            spawnInterval = max(minSpawnInterval, spawnInterval - dt * 0.02)
         }
         
         // Powerup spawns (simple timer/coin-flip)
@@ -544,6 +564,15 @@ final class GameState {
         case .paused:  phase = .playing
         default: break
         }
+    }
+    
+    /// Max concurrent enemies as a function of time
+    func maxEnemies(now t: TimeInterval) -> Int {
+        // e.g. start 5 → 10 over 60s
+        let start = 5
+        let end = 10
+        let k = min(1.0, t / 60.0)
+        return Int(round(Double(start) + (Double(end - start) * k)))
     }
     
     // MARK: - Helpers (angles)
