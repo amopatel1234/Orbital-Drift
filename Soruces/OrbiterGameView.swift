@@ -187,9 +187,8 @@ private struct PlayfieldCanvas: View {
                 height: game.player.radius * 2
             )
             let ringPath = Path(ellipseIn: ringRect)
-            let flash = game.nearMissFlash
-            let ringColor = Color.white.opacity(0.15 + 0.25 * flash)
-            context.stroke(ringPath, with: .color(ringColor), lineWidth: 2 + 1 * flash)
+            let ringColor = Color.white.opacity(0.15 + 0.25)
+            context.stroke(ringPath, with: .color(ringColor), lineWidth: 2 + 1)
             
             // Player
             let playerPos = game.playerPosition()
