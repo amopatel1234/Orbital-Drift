@@ -38,6 +38,7 @@ struct OrbiterGameView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, 0) // adjust if it collides with your cards
                 }
+                .scaleEffect(game.cameraZoom, anchor: .center)
                 .screenShake(game.shake)
                 .contentShape(Rectangle()) // for gestures
                 .onAppear {

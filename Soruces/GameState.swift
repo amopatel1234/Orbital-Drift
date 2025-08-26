@@ -138,6 +138,16 @@ final class GameState {
     private let hitStopDurMed:   Double = 0.08
     private let hitStopRecoverPerSec: Double = 2.5 // how fast we ease back to 1.0
     
+    // Camera zoom pulse (exaggerated for testing)
+    var cameraZoom: CGFloat = 1.0
+    private var zoomVel: CGFloat = 0
+    private var zoomTimer: TimeInterval = 0
+
+    private let maxZoom: CGFloat = 1.035  // ~3.5%
+    private let zoomKick: CGFloat = 0.02  // small nudge per pulse
+    private let zoomSpringK: CGFloat = 18
+    private let zoomSpringDamp: CGFloat = 2 * sqrt(18)
+    
     // MARK: - Lifecycle
     func reset(in size: CGSize) {
         worldCenter = CGPoint(x: size.width/2, y: size.height/2)
@@ -409,6 +419,8 @@ final class GameState {
             asteroids[i].pos.y += away.y * evade * simDt
         }
         
+        var killsThisFrame = 0
+        
         // --- Bullet hits ---
         if !bullets.isEmpty && !asteroids.isEmpty {
             for bi in bullets.indices where bullets[bi].life > 0 {
@@ -476,6 +488,9 @@ final class GameState {
                             }
                             shake = min(maxShake, shake + add)
                             
+                            // TEMP: always pulse on any kill so we can see it
+                            cameraZoom = min(maxZoom, cameraZoom + zoomKick)
+                            zoomTimer = 0.18
                             
                             let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x),
                                                    y: CGFloat(asteroids[ai].pos.y))
@@ -492,6 +507,12 @@ final class GameState {
                     }
                 }
             }
+        }
+        
+        if killsThisFrame >= 2 {
+            // add a small kick; clamp to max
+            cameraZoom = min(maxZoom, cameraZoom + zoomKick)
+            zoomTimer = 0.12  // optional: keep punch for a short floor time
         }
         
         // Powerup collect (stack to 5)
@@ -521,7 +542,21 @@ final class GameState {
         }
         
         // Fade juice
-        shake = max(0, shake - shakeDecayPerSec * CGFloat(dt))
+        shake = max(0, shake - shakeDecayPerSec * CGFloat(simDt))
+        
+        // Camera zoom spring back to 1.0
+        if zoomTimer > 0 {
+            zoomTimer -= dt
+        } else {
+            let x = cameraZoom - 1.0
+            let a = -zoomSpringK * x - zoomSpringDamp * zoomVel
+            zoomVel += a * CGFloat(dt)
+            cameraZoom += zoomVel * CGFloat(dt)
+            if abs(cameraZoom - 1.0) < 0.0005, abs(zoomVel) < 0.0005 {
+                cameraZoom = 1.0
+                zoomVel = 0
+            }
+        }
     }
     
     // MARK: - Spawns & FX
