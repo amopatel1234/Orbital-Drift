@@ -96,13 +96,8 @@ final class GameState {
     
     // MARK: - Timing
     private var lastUpdate: TimeInterval = 0
-    private var spawnAccumulator: TimeInterval = 0
     private var powerupTimer: TimeInterval = 0
     private var scoreAccumulator: TimeInterval = 0
-    
-    // MARK: - Difficulty
-    private var spawnInterval: TimeInterval = 0.9
-    private var minSpawnInterval: TimeInterval = 0.25
     
     // MARK: - Spawn pacing
     private var elapsed: TimeInterval = 0
@@ -156,8 +151,6 @@ final class GameState {
         invulnerability = 0
         score = 0
         
-        spawnInterval = 0.9
-        spawnAccumulator = 0
         powerupTimer = 0
         scoreAccumulator = 0
         scoreMultiplier = 1.0
@@ -310,14 +303,6 @@ final class GameState {
             a.pos.x < -pad || a.pos.x > size.width + pad ||
             a.pos.y < -pad || a.pos.y > size.height + pad ||
             !a.alive
-        }
-        
-        // Spawn logic
-        spawnAccumulator += dt
-        if spawnAccumulator >= spawnInterval {
-            spawnAccumulator = 0
-            spawnAsteroid(size: size)
-            spawnInterval = max(minSpawnInterval, spawnInterval - dt * 0.02)
         }
         
         // Powerup spawns (simple timer/coin-flip)
