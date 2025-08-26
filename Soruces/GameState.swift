@@ -46,7 +46,10 @@ final class GameState {
     var orbitRadiusRange: ClosedRange<CGFloat> = 90...150
     
     // Juice
+    // Screen shake
     var shake: CGFloat = 0
+    private let maxShake: CGFloat = 3.0
+    private let shakeDecayPerSec: CGFloat = 3.2   // ~0.3s decay to zero
     
     /// For pulsing shield halo in the renderer
     var invulnerabilityPulse: Double {
@@ -393,14 +396,30 @@ final class GameState {
                                   color: asteroids[ai].type.color)
                         if asteroids[ai].hp <= 0 {
                             asteroids[ai].alive = false
-                            // 1) Score first (based on *current* multiplier)
-                            let base = asteroids[ai].type.scoreValue
-                            let gained = Int(Double(base) * scoreMultiplier)
-                            score += gained
 
-                            // 2) Then bump multiplier based on enemy difficulty
-                            let boost = multiplierBoost(for: asteroids[ai].type)
-                            scoreMultiplier = min(maxMultiplier, scoreMultiplier + boost)
+                              // (1) Score using current multiplier
+                              let base = asteroids[ai].type.scoreValue
+                              let gained = Int(Double(base) * scoreMultiplier)
+                              score += gained
+
+                              // (2) Multiplier on kill (from your new mechanic)
+                              let boost: Double
+                              switch asteroids[ai].type {
+                              case .small:  boost = 0.12
+                              case .evader: boost = 0.18
+                              case .big:    boost = 0.25
+                              }
+                              scoreMultiplier = min(maxMultiplier, scoreMultiplier + boost)
+
+                              // (3) Screen shake scaled by enemy type
+                              let add: CGFloat
+                              switch asteroids[ai].type {
+                              case .small:  add = 0.8
+                              case .evader: add = 1.1
+                              case .big:    add = 1.5
+                              }
+                              shake = min(maxShake, shake + add)
+
                             
                             let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x), y: CGFloat(asteroids[ai].pos.y))
                             emitKillToast(at: hitPoint, value: gained, color: asteroids[ai].type.color)
@@ -443,7 +462,7 @@ final class GameState {
         }
         
         // Fade juice
-        shake = max(0, shake - CGFloat(dt*16))
+        shake = max(0, shake - shakeDecayPerSec * CGFloat(dt))
     }
     
     // MARK: - Spawns & FX
