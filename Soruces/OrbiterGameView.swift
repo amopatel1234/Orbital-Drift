@@ -23,6 +23,7 @@ struct OrbiterGameView: View {
     
     var body: some View {
         ZStack {
+            StarfieldBackground()
             GeometryReader { proxy in
                 let proxySize = proxy.size
                 
@@ -38,6 +39,7 @@ struct OrbiterGameView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, 0) // adjust if it collides with your cards
                 }
+                .scaleEffect(game.cameraZoom, anchor: .center)
                 .screenShake(game.shake)
                 .contentShape(Rectangle()) // for gestures
                 .onAppear {
@@ -276,38 +278,51 @@ private struct FXCanvas: View {
             }
             
             // +points toasts
-            for t in game.toasts {
-                let prog = max(0, min(1, t.age / t.lifetime))
-                let rise: CGFloat = 28
-                let pos = CGPoint(x: CGFloat(t.pos.x), y: CGFloat(t.pos.y) - rise * prog)
-                
-                // scale pop (ease-out-back-ish)
-                let popPhase = min(prog / 0.25, 1)
-                let scale = 0.9 + (1 - pow(1 - popPhase, 3)) * 0.25
-                let opacity = 1 - Double(prog)
-                
-                let label = Text("+\(t.value)")
+            for toast in game.toasts {
+                let t = max(0, min(1, toast.age / toast.lifetime))        // 0→1
+                let alpha = (1 - t) * (1 - 0.15 * t)                       // fade-out, gentle tail
+                let rise  = easeOutCubic(t) * 42                           // px up
+                let scale = 0.85 + 0.25 * easeOutBack(min(t * 1.4, 1))     // pop-in then settle
+
+                let p = CGPoint(x: toast.pos.x, y: toast.pos.y - rise)
+
+                // Build once, then resolve to GraphicsContext text
+                let base = Text("+\(toast.value)")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(t.color)
-                
-                context.opacity = opacity
-                
-                // Scale around `pos`
-                context.translateBy(x: pos.x, y: pos.y)
-                context.scaleBy(x: scale, y: scale)
-                context.translateBy(x: -pos.x, y: -pos.y)
-                
-                context.draw(label, at: pos, anchor: .center)
-                
-                // Reset transform
-                context.translateBy(x: pos.x, y: pos.y)
-                context.scaleBy(x: 1/scale, y: 1/scale)
-                context.translateBy(x: -pos.x, y: -pos.y)
-                
-                context.opacity = 1
+
+                let shadowText = context.resolve(
+                    base.foregroundStyle(Color.black.opacity(Double(alpha) * 0.35))
+                )
+                let mainText = context.resolve(
+                    base.foregroundStyle(toast.color.opacity(Double(alpha)))
+                )
+
+                // Draw both with the same transform (scale around p)
+                context.drawLayer { layer in
+                    // move the local origin to p
+                    layer.translateBy(x: p.x, y: p.y)
+                    // scale around the new origin
+                    layer.scaleBy(x: scale, y: scale)
+
+                    // Soft shadow (draw slightly offset from origin)
+                    layer.draw(shadowText, at: CGPoint(x: 1.5, y: 1.5))
+
+                    // Main colored label at the origin
+                    layer.draw(mainText, at: .zero)
+                }
             }
         }
         .allowsHitTesting(false)
+    }
+    
+    @inline(__always) private func easeOutCubic(_ t: CGFloat) -> CGFloat {
+        let u = 1 - t
+        return 1 - u*u*u
+    }
+    @inline(__always) private func easeOutBack(_ t: CGFloat, _ s: CGFloat = 1.70158) -> CGFloat {
+        //  overshoot “pop”
+        let u = t - 1
+        return 1 + (u*u*((s + 1)*u + s))
     }
 }
 

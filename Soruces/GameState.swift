@@ -46,7 +46,10 @@ final class GameState {
     var orbitRadiusRange: ClosedRange<CGFloat> = 90...150
     
     // Juice
+    // Screen shake
     var shake: CGFloat = 0
+    private let maxShake: CGFloat = 3.0
+    private let shakeDecayPerSec: CGFloat = 3.2   // ~0.3s decay to zero
     
     /// For pulsing shield halo in the renderer
     var invulnerabilityPulse: Double {
@@ -69,14 +72,14 @@ final class GameState {
     var holdRotateCCW: Bool = false        // future button
     var holdInnerRadius: Bool = false
     var holdOuterRadius: Bool = false      // future button (not used yet)
-
+    
     // MARK: - Angular motion (radians)
     var angularVel: CGFloat = 0
     var angularMaxSpeed: CGFloat = 2.4     // cap for rotation speed
     var angularAccel: CGFloat = 7.0        // thrust while held
     var angularDecel: CGFloat = 6.0        // braking when no input
     var angularFriction: CGFloat = 0.8     // small continuous drag (per second)
-
+    
     // MARK: - Radial motion (points)
     var radialVel: CGFloat = 0
     var radialMaxSpeed: CGFloat = 160      // px/s maximum radial speed
@@ -84,7 +87,7 @@ final class GameState {
     var radialDecel: CGFloat = 240         // braking when overshooting/letting go
     var radialFriction: CGFloat = 0.85     // small continuous drag (per second)
     
-
+    
     // MARK: - Orbit bounds
     let minOrbit: CGFloat = 60
     let maxOrbit: CGFloat = 160
@@ -100,7 +103,7 @@ final class GameState {
     // MARK: - Spawn pacing
     private var elapsed: TimeInterval = 0
     private var spawnAcc: TimeInterval = 0
-
+    
     /// Base spawns-per-second at t=0
     var baseSpawnRate: Double = 0.6
     /// Extra spawns/sec added over the first `rampDuration` seconds
@@ -109,7 +112,7 @@ final class GameState {
     var rampDuration: Double = 60
     /// Grace period with lighter cap
     var gracePeriod: Double = 8
-
+    
     // Frame-time smoothing (EMA)
     private var emaFrameMs: Double = 16.7   // start near 60fps
     var debugFrameMs: Double {
@@ -117,10 +120,33 @@ final class GameState {
     }
     private let emaAlpha: Double = 0.12
     private let targetFrameMs: Double = 16.7 // aim for 60fps budget
-
+    
     // Auto particle budget (0.3 ... 1.0)
     var particleBudgetScale: CGFloat = 1.0
     let maxParticles: Int = 800
+    
+    private enum KillBurstStyle { case radial, directionalOutward }
+    
+    // Time slow / hit-stop
+    private var timeScale: Double = 1.0            // 1.0 = normal
+    private var hitStopTimer: Double = 0.0         // seconds remaining
+    
+    // Tunables
+    private let hitStopScaleBig: Double = 0.33     // how slow during stop
+    private let hitStopDurBig:   Double = 0.12
+    private let hitStopScaleMed: Double = 0.6
+    private let hitStopDurMed:   Double = 0.08
+    private let hitStopRecoverPerSec: Double = 2.5 // how fast we ease back to 1.0
+    
+    // Camera zoom pulse (exaggerated for testing)
+    var cameraZoom: CGFloat = 1.0
+    private var zoomVel: CGFloat = 0
+    private var zoomTimer: TimeInterval = 0
+
+    private let maxZoom: CGFloat = 1.035  // ~3.5%
+    private let zoomKick: CGFloat = 0.02  // small nudge per pulse
+    private let zoomSpringK: CGFloat = 18
+    private let zoomSpringDamp: CGFloat = 2 * sqrt(18)
     
     // MARK: - Lifecycle
     func reset(in size: CGSize) {
@@ -153,6 +179,9 @@ final class GameState {
         elapsed = 0
         spawnAcc = 0
         
+        timeScale = 1.0
+        hitStopTimer = 0.0
+        
         phase = .playing
     }
     
@@ -162,29 +191,43 @@ final class GameState {
             lastUpdate = now
             return
         }
-
+        
         if lastUpdate == 0 {
             lastUpdate = now
         }
         let rawDt = now - lastUpdate        // un-clamped
         lastUpdate = now
-
+        
         // Clamp for simulation stability (as before)
         var dt = rawDt
         dt = min(max(dt, 0), 1.0/30.0)
-
-        elapsed += dt
-
+        
+        // dt is your clamped real time step
+        let simDt = dt * timeScale
+        
+        // manage hit-stop timer & smooth recovery
+        if hitStopTimer > 0 {
+            hitStopTimer -= dt
+            if hitStopTimer <= 0 { hitStopTimer = 0 }
+        } else if timeScale < 1.0 {
+            timeScale = min(1.0, timeScale + hitStopRecoverPerSec * dt)
+        }
+        
+        // Important: use simDt for GAME SIMULATION below (movement, spawn, bullets, etc.)
+        // Keep *visual decays* (shake, killFlash) using real dt so they don't freeze during hit-stop.
+        
+        elapsed += simDt
+        
         // Current spawn rate (spawns/sec), smoothly ramps up
         let ramp = min(1.0, elapsed / rampDuration)
         let spawnRate = baseSpawnRate + ramp * rampSpawnBonus
         let spawnInterval = 1.0 / spawnRate
-
-        spawnAcc += dt
-
+        
+        spawnAcc += simDt
+        
         // Cap enemies; slightly lower cap during grace period
         let cap = (elapsed < gracePeriod) ? max(3, maxEnemies(now: elapsed) - 2) : maxEnemies(now: elapsed)
-
+        
         while spawnAcc >= spawnInterval {
             spawnAcc -= spawnInterval
             if asteroids.count(where: { $0.alive }) < cap {
@@ -195,7 +238,7 @@ final class GameState {
         // --- Perf: EMA frame time (ms) & budget ---
         let ms = rawDt * 1000.0
         emaFrameMs = emaFrameMs * (1.0 - emaAlpha) + ms * emaAlpha
-
+        
         // Budget scale rises toward 1 when under budget, dips when over
         let target = targetFrameMs
         let scale = max(0.3, min(1.0, target / max(1.0, emaFrameMs)))
@@ -208,7 +251,7 @@ final class GameState {
         }
         
         // --- Auto-fire toward world center ---
-        fireAccumulator += dt
+        fireAccumulator += simDt
         let fireInterval = 1.0 / fireRate
         while fireAccumulator >= fireInterval {
             fireAccumulator -= fireInterval
@@ -225,50 +268,49 @@ final class GameState {
                 life: 1.2,
                 size: 3.5
             ))
-            emitBurst(at: p, count: 4, speed: 120...220)   // tiny white spark when shooting
         }
         
         // Tick invulnerability
-        if invulnerability > 0 { invulnerability = max(0, invulnerability - dt) }
+        if invulnerability > 0 { invulnerability = max(0, invulnerability - simDt) }
         
         // === Momentum-based ANGLE ===
         // Input: +1 = CCW, -1 = CW
         let turnInput: CGFloat = (holdRotateCCW ? 1 : 0) - (holdRotateCW ? 1 : 0)
         let turnTargetSpeed = turnInput * angularMaxSpeed
-
+        
         if turnInput != 0 {
             // Thrust toward target speed
             let delta = turnTargetSpeed - angularVel
-            let maxDelta = angularAccel * CGFloat(dt)
+            let maxDelta = angularAccel * CGFloat(simDt)
             angularVel += max(-maxDelta, min(maxDelta, delta))
         } else {
             // No input: brake toward 0
             let sign = angularVel >= 0 ? 1 : -1
             let mag = abs(angularVel)
-            let newMag = max(0, mag - angularDecel * CGFloat(dt))
+            let newMag = max(0, mag - angularDecel * CGFloat(simDt))
             angularVel = CGFloat(sign) * newMag
         }
-
+        
         // Continuous tiny drag (prevents endless micro-oscillation)
-        angularVel *= pow(angularFriction, CGFloat(dt))
-
+        angularVel *= pow(angularFriction, CGFloat(simDt))
+        
         // Integrate
-        player.angle += angularVel * CGFloat(dt)
-
-
+        player.angle += angularVel * CGFloat(simDt)
+        
+        
         // === Radius spring toward sticky target ===
         let desiredRadius = targetRadius
-
+        
         // Critically damped spring
         let k: CGFloat = 22.0
         let c: CGFloat = 2 * sqrt(k)
         let x = player.radius
         let v = radialVel
         let a = -k * (x - desiredRadius) - c * v
-
-        radialVel += a * CGFloat(dt)
-        player.radius += radialVel * CGFloat(dt)
-
+        
+        radialVel += a * CGFloat(simDt)
+        player.radius += radialVel * CGFloat(simDt)
+        
         // Clamp + bump haptic (unchanged)
         player.radius = min(max(player.radius, minOrbit), maxOrbit)
         let bumpedMin = player.radius <= minOrbit + 0.001
@@ -280,14 +322,14 @@ final class GameState {
         
         // Move asteroids
         for i in asteroids.indices {
-            asteroids[i].pos.x += asteroids[i].vel.x * dt
-            asteroids[i].pos.y += asteroids[i].vel.y * dt
+            asteroids[i].pos.x += asteroids[i].vel.x * simDt
+            asteroids[i].pos.y += asteroids[i].vel.y * simDt
         }
         
         // --- Bullets step ---
         for i in bullets.indices {
-            bullets[i].pos = bullets[i].pos + bullets[i].vel * dt
-            bullets[i].life -= CGFloat(dt)
+            bullets[i].pos = bullets[i].pos + bullets[i].vel * simDt
+            bullets[i].life -= CGFloat(simDt)
         }
         bullets.removeAll { $0.life <= 0 }
         
@@ -300,7 +342,7 @@ final class GameState {
         }
         
         // Powerup spawns (simple timer/coin-flip)
-        powerupTimer += dt
+        powerupTimer += simDt
         if powerupTimer > 6.5 {
             powerupTimer = 0
             if Bool.random(), powerups.count < 2 {
@@ -313,20 +355,20 @@ final class GameState {
         
         // Particles update
         for i in particles.indices {
-            particles[i].pos.x += particles[i].vel.x * dt
-            particles[i].pos.y += particles[i].vel.y * dt
-            particles[i].life -= CGFloat(dt * 1.8)
+            particles[i].pos.x += particles[i].vel.x * simDt
+            particles[i].pos.y += particles[i].vel.y * simDt
+            particles[i].life -= CGFloat(simDt * 1.8)
         }
         particles.removeAll { $0.life <= 0 }
         
         // Shockwaves update
         for i in shockwaves.indices {
-            shockwaves[i].age += CGFloat(dt * 1.6)
+            shockwaves[i].age += CGFloat(simDt * 1.6)
         }
         shockwaves.removeAll { $0.age >= 1 }
         
         // --- Kill toast update ---
-        for i in toasts.indices { toasts[i].age += CGFloat(dt) }
+        for i in toasts.indices { toasts[i].age += CGFloat(simDt) }
         toasts.removeAll { $0.age >= $0.lifetime }
         
         // Collisions + near-miss
@@ -372,9 +414,11 @@ final class GameState {
         for i in asteroids.indices where asteroids[i].type == .evader {
             let away = (asteroids[i].pos - ship).normalized()
             let evade: CGFloat = 40   // tweak feel (30–60 works well)
-            asteroids[i].pos.x += away.x * evade * dt
-            asteroids[i].pos.y += away.y * evade * dt
+            asteroids[i].pos.x += away.x * evade * simDt
+            asteroids[i].pos.y += away.y * evade * simDt
         }
+        
+        var killsThisFrame = 0
         
         // --- Bullet hits ---
         if !bullets.isEmpty && !asteroids.isEmpty {
@@ -391,20 +435,68 @@ final class GameState {
                                   count: 8,
                                   speed: 80...160,
                                   color: asteroids[ai].type.color)
+                        if asteroids[ai].hp > 0 {
+                            // small tap sparks in the incoming bullet direction
+                            let bp = bullets[bi].pos
+                            let dir = CGVector(dx: CGFloat(bullets[bi].vel.x), dy: CGFloat(bullets[bi].vel.y))
+                            emitDirectionalBurst(at: .init(x: CGFloat(bp.x), y: CGFloat(bp.y)),
+                                                 dir: dir,
+                                                 count: 5,
+                                                 spread: 0.25,
+                                                 speed: 80...140,
+                                                 life: 0.5,
+                                                 color: .white.opacity(0.9))
+                        }
+                        
                         if asteroids[ai].hp <= 0 {
                             asteroids[ai].alive = false
-                            // 1) Score first (based on *current* multiplier)
+                            
+                            // Hit-stop by enemy difficulty
+                            switch asteroids[ai].type {
+                            case .big:
+                                timeScale = hitStopScaleBig
+                                hitStopTimer = hitStopDurBig
+                            case .evader:
+                                timeScale = hitStopScaleMed
+                                hitStopTimer = hitStopDurMed
+                            case .small:
+                                // optional: tiny or none
+                                break
+                            }
+                            
+                            // (1) Score using current multiplier
                             let base = asteroids[ai].type.scoreValue
                             let gained = Int(Double(base) * scoreMultiplier)
                             score += gained
-
-                            // 2) Then bump multiplier based on enemy difficulty
-                            let boost = multiplierBoost(for: asteroids[ai].type)
+                            
+                            // (2) Multiplier on kill (from your new mechanic)
+                            let boost: Double
+                            switch asteroids[ai].type {
+                            case .small:  boost = 0.12
+                            case .evader: boost = 0.18
+                            case .big:    boost = 0.25
+                            }
                             scoreMultiplier = min(maxMultiplier, scoreMultiplier + boost)
                             
-                            let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x), y: CGFloat(asteroids[ai].pos.y))
+                            // (3) Screen shake scaled by enemy type
+                            let add: CGFloat
+                            switch asteroids[ai].type {
+                            case .small:  add = 0.8
+                            case .evader: add = 1.1
+                            case .big:    add = 1.5
+                            }
+                            shake = min(maxShake, shake + add)
+                            
+                            // TEMP: always pulse on any kill so we can see it
+                            cameraZoom = min(maxZoom, cameraZoom + zoomKick)
+                            zoomTimer = 0.18
+                            
+                            let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x),
+                                                   y: CGFloat(asteroids[ai].pos.y))
+                            
+                            emitKillBurst(at: hitPoint, for: asteroids[ai].type)
                             emitKillToast(at: hitPoint, value: gained, color: asteroids[ai].type.color)
-
+                            
                             SoundSynth.shared.pickup()
                         } else {
                             // Optional: a lighter “hit” sound for non-lethal hits
@@ -414,6 +506,12 @@ final class GameState {
                     }
                 }
             }
+        }
+        
+        if killsThisFrame >= 2 {
+            // add a small kick; clamp to max
+            cameraZoom = min(maxZoom, cameraZoom + zoomKick)
+            zoomTimer = 0.12  // optional: keep punch for a short floor time
         }
         
         // Powerup collect (stack to 5)
@@ -443,7 +541,21 @@ final class GameState {
         }
         
         // Fade juice
-        shake = max(0, shake - CGFloat(dt*16))
+        shake = max(0, shake - shakeDecayPerSec * CGFloat(simDt))
+        
+        // Camera zoom spring back to 1.0
+        if zoomTimer > 0 {
+            zoomTimer -= dt
+        } else {
+            let x = cameraZoom - 1.0
+            let a = -zoomSpringK * x - zoomSpringDamp * zoomVel
+            zoomVel += a * CGFloat(dt)
+            cameraZoom += zoomVel * CGFloat(dt)
+            if abs(cameraZoom - 1.0) < 0.0005, abs(zoomVel) < 0.0005 {
+                cameraZoom = 1.0
+                zoomVel = 0
+            }
+        }
     }
     
     // MARK: - Spawns & FX
@@ -508,7 +620,7 @@ final class GameState {
                    color: Color = .white) {
         // Scale count by current budget (ceil so at least 1 when asked)
         let scaled = max(1, Int(ceil(CGFloat(count) * particleBudgetScale)))
-
+        
         for _ in 0..<scaled {
             let a = CGFloat.random(in: 0...(2*CGFloat.pi))
             let s = CGFloat.random(in: speed)
@@ -519,11 +631,50 @@ final class GameState {
                 color: color
             ))
         }
-
+        
         // Soft cap to avoid runaway
         if particles.count > maxParticles {
             let overflow = particles.count - maxParticles
             particles.removeFirst(overflow)
+        }
+    }
+    
+    /// Emits a particle burst biased toward a direction (for streaky looks).
+    /// - Parameters:
+    ///   - p: origin
+    ///   - dir: preferred direction (unit or not; we normalize)
+    ///   - count: number of particles
+    ///   - spread: radians of angular spread around `dir` (e.g. 0.35)
+    ///   - speed: speed range
+    ///   - life: particle lifetime (seconds)
+    ///   - color: particle color
+    func emitDirectionalBurst(at p: CGPoint,
+                              dir: CGVector,
+                              count: Int,
+                              spread: CGFloat,
+                              speed: ClosedRange<CGFloat>,
+                              life: CGFloat = 1.0,
+                              color: Color)
+    {
+        // normalize dir
+        let len = max(0.0001, sqrt(dir.dx*dir.dx + dir.dy*dir.dy))
+        let ux = dir.dx / len
+        let uy = dir.dy / len
+        let baseAngle = atan2(uy, ux)
+        
+        let scaledCount = max(1, Int(ceil(CGFloat(count) * particleBudgetScale)))
+        for _ in 0..<scaledCount {
+            let a = baseAngle + CGFloat.random(in: -spread...spread)
+            let s = CGFloat.random(in: speed)
+            particles.append(Particle(
+                pos: .init(x: p.x, y: p.y),
+                vel: .init(x: cos(a)*s, y: sin(a)*s),
+                life: life,
+                color: color
+            ))
+        }
+        if particles.count > maxParticles {
+            particles.removeFirst(particles.count - maxParticles)
         }
     }
     
@@ -582,7 +733,7 @@ final class GameState {
         holdInnerRadius = pressing
         targetRadius = pressing ? minOrbit : player.radius   // release: lock to current
     }
-
+    
     func setOuterPress(_ pressing: Bool) {
         holdOuterRadius = pressing
         targetRadius = pressing ? maxOrbit : player.radius   // release: lock to current
@@ -593,6 +744,46 @@ final class GameState {
         case .small:  return 0.12   // easiest → smallest boost
         case .evader: return 0.18   // medium
         case .big:    return 0.25   // hardest → biggest boost
+        }
+    }
+    
+    private func killBurstParams(for type: EnemyType) -> (count: Int,
+                                                          speed: ClosedRange<CGFloat>,
+                                                          life: CGFloat,
+                                                          color: Color,
+                                                          style: KillBurstStyle)
+    {
+        enum Style { case radial, directionalOutward }
+        
+        switch type {
+        case .small:
+            return (count: 10, speed: 120...220, life: 0.7, color: .blue,   style: .radial)
+        case .evader:
+            return (count: 14, speed: 160...280, life: 0.9, color: .purple, style: .directionalOutward)
+        case .big:
+            return (count: 22, speed: 100...200, life: 1.2, color: .red,    style: .radial)
+        }
+    }
+    
+    /// Convenience wrapper to emit a kill burst matching the enemy type.
+    /// Directional for evaders (streaky), radial for others (chunky).
+    func emitKillBurst(at p: CGPoint, for type: EnemyType) {
+        let preset = killBurstParams(for: type)
+        switch preset.style {
+        case .radial:
+            emitBurst(at: p, count: preset.count, speed: preset.speed, color: preset.color)
+        case .directionalOutward:
+            // outward from center for a “streak” look
+            let dx = p.x - worldCenter.x
+            let dy = p.y - worldCenter.y
+            let outward = CGVector(dx: dx, dy: dy)
+            emitDirectionalBurst(at: p,
+                                 dir: outward,
+                                 count: preset.count,
+                                 spread: 0.35,
+                                 speed: preset.speed,
+                                 life: preset.life,
+                                 color: preset.color)
         }
     }
 }

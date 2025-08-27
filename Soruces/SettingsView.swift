@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreMotion
 
 struct SettingsView: View {
     @EnvironmentObject private var router: AppRouter
@@ -16,8 +17,9 @@ struct SettingsView: View {
     @AppStorage("musicEnabled") private var musicEnabled: Bool = true
     @AppStorage("debugEnabled") private var debugEnabled = false
     @AppStorage("debugDrawHitboxes") private var debugDrawHitboxes = true
+    @AppStorage("motionParallaxEnabled") private var motionParallaxEnabled = true
     @State private var confirmReset = false
-
+    
     var body: some View {
         Form {
             Section("Appearance") {
@@ -54,6 +56,14 @@ struct SettingsView: View {
                 Toggle("Enable Debug Overlay", isOn: $debugEnabled)
                 Toggle("Show Collision Hitboxes", isOn: $debugDrawHitboxes)
             }
+            
+            Section("Visual") {
+                Toggle("Motion Parallax (Starfield)", isOn: $motionParallaxEnabled)
+                    .disabled(!CMMotionManager().isDeviceMotionAvailable)
+                    .accessibilityHint("Parallax moves stars with device tilt.")
+            }
+            
+            
             Section("About") {
                 LabeledContent("Version",
                                value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–")
@@ -63,9 +73,9 @@ struct SettingsView: View {
         .confirmationDialog("Show tutorial on next launch?",
                             isPresented: $confirmReset,
                             actions: {
-                                Button("Yes", role: .none) { seenTutorial = false }
-                                Button("Cancel", role: .cancel) { }
-                            })
+            Button("Yes", role: .none) { seenTutorial = false }
+            Button("Cancel", role: .cancel) { }
+        })
     }
 }
 

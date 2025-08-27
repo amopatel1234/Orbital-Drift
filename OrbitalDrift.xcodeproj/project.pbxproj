@@ -7,12 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3B757C6A2E5E1D9100BE993D /* ScreenShake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C692E5E1D9100BE993D /* ScreenShake.swift */; };
+		3B757C6C2E5E346800BE993D /* MotionParallax.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C6B2E5E346800BE993D /* MotionParallax.swift */; };
+		3B757C6E2E5E347300BE993D /* StarfieldBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C6D2E5E347300BE993D /* StarfieldBackground.swift */; };
 		3B9D9EB02E5A3140006281F0 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAB2E5A30D8006281F0 /* GameState.swift */; };
 		3B9D9EB12E5A3140006281F0 /* OverlayViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */; };
 		3B9D9EB22E5A3140006281F0 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */; };
 		3B9D9EB32E5A3140006281F0 /* OrbiterGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAC2E5A30E1006281F0 /* OrbiterGameView.swift */; };
 		3B9D9EB42E5A3140006281F0 /* GameModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAA2E5A30C2006281F0 /* GameModels.swift */; };
-		3B9D9EB52E5A3140006281F0 /* View+Shake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAF2E5A30FE006281F0 /* View+Shake.swift */; };
 		3B9D9EB72E5A355B006281F0 /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EB62E5A355B006281F0 /* AppRouter.swift */; };
 		3B9D9EB92E5A356C006281F0 /* ScoreStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EB82E5A356C006281F0 /* ScoreStore.swift */; };
 		3B9D9EBB2E5A357B006281F0 /* MainMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EBA2E5A357B006281F0 /* MainMenuView.swift */; };
@@ -44,6 +46,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3B757C692E5E1D9100BE993D /* ScreenShake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShake.swift; sourceTree = "<group>"; };
+		3B757C6B2E5E346800BE993D /* MotionParallax.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionParallax.swift; sourceTree = "<group>"; };
+		3B757C6D2E5E347300BE993D /* StarfieldBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarfieldBackground.swift; sourceTree = "<group>"; };
 		3B9D9E732E5A3049006281F0 /* OrbitalDrift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OrbitalDrift.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B9D9E802E5A304D006281F0 /* OrbitalDriftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OrbitalDriftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B9D9E8A2E5A304D006281F0 /* OrbitalDriftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OrbitalDriftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,7 +57,6 @@
 		3B9D9EAC2E5A30E1006281F0 /* OrbiterGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbiterGameView.swift; sourceTree = "<group>"; };
 		3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayViews.swift; sourceTree = "<group>"; };
 		3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
-		3B9D9EAF2E5A30FE006281F0 /* View+Shake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Shake.swift"; sourceTree = "<group>"; };
 		3B9D9EB62E5A355B006281F0 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		3B9D9EB82E5A356C006281F0 /* ScoreStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreStore.swift; sourceTree = "<group>"; };
 		3B9D9EBA2E5A357B006281F0 /* MainMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuView.swift; sourceTree = "<group>"; };
@@ -133,6 +137,9 @@
 		3B9D9EA92E5A3079006281F0 /* Soruces */ = {
 			isa = PBXGroup;
 			children = (
+				3B757C6D2E5E347300BE993D /* StarfieldBackground.swift */,
+				3B757C6B2E5E346800BE993D /* MotionParallax.swift */,
+				3B757C692E5E1D9100BE993D /* ScreenShake.swift */,
 				3B9D9EF82E5B82A9006281F0 /* DisplayLinkAsync.swift */,
 				3B9D9EDE2E5B6403006281F0 /* MusicLoop.swift */,
 				3B9D9EDC2E5B61EC006281F0 /* SoundSynth.swift */,
@@ -143,7 +150,6 @@
 				3B9D9EBA2E5A357B006281F0 /* MainMenuView.swift */,
 				3B9D9EB82E5A356C006281F0 /* ScoreStore.swift */,
 				3B9D9EB62E5A355B006281F0 /* AppRouter.swift */,
-				3B9D9EAF2E5A30FE006281F0 /* View+Shake.swift */,
 				3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */,
 				3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */,
 				3B9D9EAC2E5A30E1006281F0 /* OrbiterGameView.swift */,
@@ -298,19 +304,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3B757C6A2E5E1D9100BE993D /* ScreenShake.swift in Sources */,
 				3B9D9ED92E5AC5F2006281F0 /* TutorialView.swift in Sources */,
 				3B9D9EBD2E5A3582006281F0 /* HighScoresView.swift in Sources */,
 				3B9D9EBB2E5A357B006281F0 /* MainMenuView.swift in Sources */,
 				3B9D9EB02E5A3140006281F0 /* GameState.swift in Sources */,
 				3B9D9EB12E5A3140006281F0 /* OverlayViews.swift in Sources */,
+				3B757C6E2E5E347300BE993D /* StarfieldBackground.swift in Sources */,
 				3B9D9EF92E5B82A9006281F0 /* DisplayLinkAsync.swift in Sources */,
 				3B9D9EDB2E5ACCC5006281F0 /* DemoOrbitView.swift in Sources */,
 				3B9D9EB22E5A3140006281F0 /* Haptics.swift in Sources */,
 				3B9D9EB92E5A356C006281F0 /* ScoreStore.swift in Sources */,
 				3B9D9EDD2E5B61EC006281F0 /* SoundSynth.swift in Sources */,
 				3B9D9EB32E5A3140006281F0 /* OrbiterGameView.swift in Sources */,
+				3B757C6C2E5E346800BE993D /* MotionParallax.swift in Sources */,
 				3B9D9EB42E5A3140006281F0 /* GameModels.swift in Sources */,
-				3B9D9EB52E5A3140006281F0 /* View+Shake.swift in Sources */,
 				3B9D9EB72E5A355B006281F0 /* AppRouter.swift in Sources */,
 				3B9D9EDF2E5B6403006281F0 /* MusicLoop.swift in Sources */,
 				3B9D9EFB2E5B934D006281F0 /* Vector2.swift in Sources */,
