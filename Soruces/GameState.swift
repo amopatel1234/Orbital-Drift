@@ -268,7 +268,6 @@ final class GameState {
                 life: 1.2,
                 size: 3.5
             ))
-            emitBurst(at: p, count: 4, speed: 120...220)   // tiny white spark when shooting
         }
         
         // Tick invulnerability

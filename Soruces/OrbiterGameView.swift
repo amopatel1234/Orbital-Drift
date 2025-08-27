@@ -23,6 +23,7 @@ struct OrbiterGameView: View {
     
     var body: some View {
         ZStack {
+            StarfieldBackground()
             GeometryReader { proxy in
                 let proxySize = proxy.size
                 
