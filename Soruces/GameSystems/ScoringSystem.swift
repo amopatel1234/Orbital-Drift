@@ -5,14 +5,6 @@
 //  Created by Amish Patel on 27/08/2025.
 //
 
-
-//
-//  ScoringSystem.swift
-//  OrbitalDrift
-//
-//  Created by Amish Patel on 24/08/2025.
-//
-
 import SwiftUI
 
 @MainActor
@@ -35,13 +27,12 @@ final class ScoringSystem {
     }
     
     func addKillScore(_ baseValue: Int, for enemyType: EnemyType) -> Int {
-        // Add multiplier boost first
-        addMultiplierBoost(for: enemyType)
-        
-        // Calculate gained score with current multiplier
+        // 1) score with current multiplier (pre-boost)
         let gained = Int(Double(baseValue) * scoreMultiplier)
         score += gained
-        
+
+        // 2) then boost multiplier for next kills
+        addMultiplierBoost(for: enemyType)
         return gained
     }
     
