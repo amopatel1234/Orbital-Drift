@@ -10,13 +10,13 @@ import SwiftUI
 /// Manages procedural enemy spawning with difficulty progression and population limits.
 ///
 /// `SpawningSystem` controls the rate and placement of enemy asteroids based on elapsed time:
-/// - **Spawn rate**: starts slow (`baseSpawnRate`) and ramps up over `rampDuration` seconds
+/// - **Spawn Rate**: starts slow (`baseSpawnRate`) and ramps up over `rampDuration` seconds
 ///   by adding `rampSpawnBonus` to create increasing pressure.
-/// - **Population cap**: limits concurrent **alive** enemies via `maxEnemies(now:)`, with a reduced // ✅ EDIT (added alive)
+/// - **Population Cap**: limits concurrent enemies via `maxEnemies(now:)`, with a reduced
 ///   cap during the initial `gracePeriod` for gentler onboarding.
-/// - **Edge spawning**: places enemies randomly along screen edges, aimed toward the center  // ✅ EDIT (lowercase)
-///   with jitter to create natural variety.
-/// - **Type distribution**: weighted random selection (65% small, 25% big, 10% evader).        // ✅ EDIT (lowercase)
+/// - **Edge Spawning**: places enemies randomly along screen edges, aimed roughly toward
+///   the center with jitter **and directional variance** so that paths feel less predictable.
+/// - **Type Distribution**: weighted random selection (65% small, 25% big, 10% evader).
 ///
 /// **Important**: This system does **not** own the asteroid array. It modifies the
 /// authoritative array passed via `inout` from `GameState` to prevent sync issues.
@@ -27,7 +27,6 @@ import SwiftUI
 /// - Call `updateSpawning(dt:size:asteroids:worldCenter:)` with **simulation dt**
 ///   (affected by hit-stop) so spawning slows during dramatic moments.
 /// - Enemy movement/AI is handled elsewhere; this system only handles creation and placement.
-/// - Runs on `@MainActor` alongside `GameState` to avoid cross-thread entity mutation. // ✅ EDIT (threading note)
 @MainActor
 @Observable
 final class SpawningSystem {
@@ -112,7 +111,8 @@ final class SpawningSystem {
     ///
     /// **Placement Strategy:**
     /// - Random edge (top/right/bottom/left) with slight off-screen positioning.
-    /// - Aims toward `worldCenter` with jitter (±40 units) for natural movement variation.
+    /// - Aims roughly at `worldCenter` with jitter (±40 units) and **extra trajectory variance**
+    ///   so that enemies don’t always converge perfectly on the same point.
     ///
     /// **Type Distribution:**
     /// - 65%: Small (fast, weak, 1 HP)
@@ -147,6 +147,12 @@ final class SpawningSystem {
         let dir = CGVector(dx: target.x - pos.x, dy: target.y - pos.y)
         let len = max(1, sqrt(dir.dx*dir.dx + dir.dy*dir.dy))
         
+        // --- NEW: add small angular randomness (±15° by default) ---
+        let angleOffset = CGFloat.random(in: -0.25...0.25)   // radians ≈ ±14°
+        let baseAngle = atan2(dir.dy, dir.dx)
+        let finalAngle = baseAngle + angleOffset
+        let unitVel = CGVector(dx: cos(finalAngle), dy: sin(finalAngle))
+        
         // Type-specific stats
         let speed: CGFloat
         let hp: Int
@@ -166,7 +172,7 @@ final class SpawningSystem {
             radius = 12
         }
         
-        let vel = Vector2(x: (dir.dx/len) * speed, y: (dir.dy/len) * speed)
+        let vel = Vector2(x: unitVel.dx * speed, y: unitVel.dy * speed)
         
         asteroids.append(Asteroid(
             pos: .init(x: pos.x, y: pos.y),
