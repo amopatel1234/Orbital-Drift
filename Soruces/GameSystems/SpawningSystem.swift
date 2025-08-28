@@ -10,13 +10,13 @@ import SwiftUI
 /// Manages procedural enemy spawning with difficulty progression and population limits.
 ///
 /// `SpawningSystem` controls the rate and placement of enemy asteroids based on elapsed time:
-/// - **Spawn Rate**: starts slow (`baseSpawnRate`) and ramps up over `rampDuration` seconds
+/// - **Spawn rate**: starts slow (`baseSpawnRate`) and ramps up over `rampDuration` seconds
 ///   by adding `rampSpawnBonus` to create increasing pressure.
-/// - **Population Cap**: limits concurrent enemies via `maxEnemies(now:)`, with a reduced
+/// - **Population cap**: limits concurrent **alive** enemies via `maxEnemies(now:)`, with a reduced // ✅ EDIT (added alive)
 ///   cap during the initial `gracePeriod` for gentler onboarding.
-/// - **Edge Spawning**: places enemies randomly along screen edges, aimed toward the center
+/// - **Edge spawning**: places enemies randomly along screen edges, aimed toward the center  // ✅ EDIT (lowercase)
 ///   with jitter to create natural variety.
-/// - **Type Distribution**: weighted random selection (65% small, 25% big, 10% evader).
+/// - **Type distribution**: weighted random selection (65% small, 25% big, 10% evader).        // ✅ EDIT (lowercase)
 ///
 /// **Important**: This system does **not** own the asteroid array. It modifies the
 /// authoritative array passed via `inout` from `GameState` to prevent sync issues.
@@ -27,12 +27,14 @@ import SwiftUI
 /// - Call `updateSpawning(dt:size:asteroids:worldCenter:)` with **simulation dt**
 ///   (affected by hit-stop) so spawning slows during dramatic moments.
 /// - Enemy movement/AI is handled elsewhere; this system only handles creation and placement.
+/// - Runs on `@MainActor` alongside `GameState` to avoid cross-thread entity mutation. // ✅ EDIT (threading note)
 @MainActor
 @Observable
 final class SpawningSystem {
     // MARK: - Spawning State
 
-    /// Total time elapsed since the last reset (seconds). Drives difficulty progression.
+    /// Total simulation time elapsed since the last reset (seconds).  // ✅ EDIT
+    /// Advances with **simDt** so spawn pacing also slows during hit-stop. // ✅ EDIT
     private var elapsed: TimeInterval = 0
 
     /// Time accumulator for spawn intervals. When it exceeds `1.0 / spawnRate`,
@@ -69,7 +71,8 @@ final class SpawningSystem {
     ///   - size: Screen/world bounds for edge spawning calculations.
     ///   - asteroids: **Authoritative** asteroid array (modified in-place via `inout`).
     ///   - worldCenter: Center point for enemy targeting with jitter.
-    /// - Order: Call once per simulation frame from `GameState.update(...)`.
+    /// - Order: Call once per simulation frame from `GameState.update(...)`,         // ✅ EDIT
+    ///   preferably before movement/AI/culling so new spawns step immediately.       // ✅ EDIT
     func updateSpawning(dt: TimeInterval, size: CGSize, asteroids: inout [Asteroid], worldCenter: CGPoint) {
         elapsed += dt
         

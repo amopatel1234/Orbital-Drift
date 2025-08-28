@@ -9,67 +9,162 @@ import SwiftUI
 import Observation
 import QuartzCore
 
-/// The central simulation object for Orbital Drift.
+/// The central simulation object for **Orbital Drift**.
 ///
-/// `GameState` coordinates the component systems and maintains shared state
-/// needed by the UI. All gameplay logic is delegated to specialized systems.
+/// `GameState` coordinates all subsystem updates, owns shared world state that the UI
+/// binds to, and defines the frame loop (`update`). Gameplay logic is delegated to
+/// specialized systems:
+///
+/// - `MotionSystem` – integrates the player's angle/radius with momentum + spring.
+/// - `CombatSystem` – bullets, powerups, shields, i-frames.
+/// - `EffectsSystem` – particles, shockwaves, kill toasts, shake/zoom, hit-stop timeScale.
+/// - `SpawningSystem` – time-ramped enemy spawning with population caps.
+/// - `ScoringSystem` – score + multiplier, high-score persistence.
+///
+/// ### Time model
+/// Each frame computes:
+/// - `dt` = clamped real delta (unscaled) used for **visual decays** and **UI-facing timing**.
+/// - `simDt = dt * effectsSystem.timeScale` used for **gameplay simulation** (movement,
+///   spawn, bullets, collisions) so hit-stop slows the game but not visual decays.
+///
+/// ### Ownership
+/// - `GameState` owns the **authoritative** arrays for enemies (`asteroids`) and the
+///   player model, plus UI-exposed derived values from subsystems (score, cameraZoom, etc).
+/// - Subsystems own their internal state (e.g., `CombatSystem.bullets`, `EffectsSystem.particles`).
+///
+/// ### Order of operations (per frame)
+/// 1. Compute `dt` and `simDt`, update performance/visual decays (`EffectsSystem`, `ScoringSystem`).
+/// 2. Spawning (simDt), Shooting (simDt), Motion (simDt).
+/// 3. Enemy movement / culling (simDt).
+/// 4. Collisions (simDt), Powerups (simDt), Invulnerability tick (simDt).
+/// 5. Finalize game-over and publish UI-observable fields.
+///
+/// This class is `@MainActor` & `@Observable` so SwiftUI can bind directly to its
+/// published properties without threading hazards.
 @MainActor
 @Observable
 final class GameState {
 
     // MARK: - Systems
+
+    /// Integrates player motion (angle & radius) with momentum and a critically-damped spring.
     private let motionSystem = MotionSystem()
+
+    /// Owns bullets/powerups, shield charges, and invulnerability.
     private let combatSystem = CombatSystem()
+
+    /// Visual FX and global timeScale (hit-stop). Also handles shake/zoom/particles/toasts.
     private let effectsSystem = EffectsSystem()
+
+    /// Time-ramped enemy spawning with population caps and edge placement.
     private let spawningSystem = SpawningSystem()
+
+    /// Score/multiplier bookkeeping and high-score persistence.
     private let scoringSystem = ScoringSystem()
 
     // MARK: 🧭 Phase & Timing (public UI-facing)
+
+    /// High-level gameplay phase bound to UI (menu/playing/paused/gameOver).
     var phase: GamePhase = .menu
+
+    /// Last frame timestamp (seconds). Used to compute `dt` in `update`.
     private var lastUpdate: TimeInterval = 0
 
     // MARK: 🌍 World & Entities
+
+    /// World origin for orbits & enemy targeting (usually the screen center).
     var worldCenter: CGPoint = .zero
+
+    /// The player entity (angle, radius, size, alive state).
     var player = Player()
     
     // Motion state
+
+    /// The target orbit radius the spring drives toward (updated by input handlers).
     private var targetRadius: CGFloat = 160
 
     // MARK: 🎮 Input Flags (exposed for UI)
+
+    /// Hold to rotate clockwise.
     var holdRotateCW: Bool = false
+
+    /// Hold to rotate counter-clockwise.
     var holdRotateCCW: Bool = false
+
+    /// Hold to move toward inner orbit bound.
     var holdInnerRadius: Bool = false
+
+    /// Hold to move toward outer orbit bound.
     var holdOuterRadius: Bool = false
 
     // Performance tracking
+
+    /// Exponentially smoothed frame time in milliseconds for debug UI.
     private var _debugFrameMs: Double = 16.0
+
+    /// Reserved; not currently used in the loop (kept for future profiling).
     private var lastFrameTime: CFTimeInterval = 0
 
     // MARK: - Computed Properties (delegated to systems)
-    
+    // UI reads these; they forward to the owning system to avoid duplicated state.
+
+    /// Current score.
     var score: Int { scoringSystem.score }
+
+    /// Highest score persisted in `UserDefaults`.
     var highScore: Int { scoringSystem.highScore }
+
+    /// Current score multiplier (decays over **real** time).
     var scoreMultiplier: Double { scoringSystem.scoreMultiplier }
+
+    /// Player shields remaining.
     var shieldCharges: Int { combatSystem.shieldCharges }
+
+    /// Remaining invulnerability (i-frames) in seconds.
     var invulnerability: TimeInterval { combatSystem.invulnerability }
+
+    /// 0–1 pulse used by the renderer to draw shield halo while invulnerable.
     var invulnerabilityPulse: Double { combatSystem.invulnerabilityPulse }
+
+    /// Screen shake amount for the frame.
     var shake: CGFloat { effectsSystem.shake }
+
+    /// Camera zoom scalar (1 = neutral).
     var cameraZoom: CGFloat { effectsSystem.cameraZoom }
     
     // Entity accessors
+
+    /// Authoritative enemy array (alive/dead, HP, type, position).
     var asteroids: [Asteroid] = []
+
+    /// Live bullets owned by `CombatSystem`.
     var bullets: [Bullet] { combatSystem.bullets }
+
+    /// Active powerups owned by `CombatSystem`.
     var powerups: [Powerup] { combatSystem.powerups }
+
+    /// Live particles owned by `EffectsSystem`.
     var particles: [Particle] { effectsSystem.particles }
+
+    /// Expanding rings for impacts.
     var shockwaves: [Shockwave] { effectsSystem.shockwaves }
+
+    /// Floating score popups on kill.
     var toasts: [KillToast] { effectsSystem.toasts }
     
     // Performance metrics
+
+    /// Smoothed frame time (ms) for the dev meter.
     var debugFrameMs: Double { _debugFrameMs }
+
+    /// Auto particle budget (0.3–1.0). Kept simple here; can be hooked to perf later.
     var particleBudgetScale: CGFloat { 1.0 } // Simplified for now
 
     // MARK: - Lifecycle
 
+    /// Clears transient state and starts a new run in `.playing` phase.
+    ///
+    /// - Parameter size: Current viewport size; used to set `worldCenter` and initial radius.
     func reset(in size: CGSize) {
         worldCenter = CGPoint(x: size.width/2, y: size.height/2)
 
@@ -79,7 +174,7 @@ final class GameState {
 
         asteroids = []
         
-        // Reset systems
+        // Reset subsystems
         motionSystem.reset()
         combatSystem.reset()
         effectsSystem.reset()
@@ -92,6 +187,13 @@ final class GameState {
 
     // MARK: - Main loop
 
+    /// Steps one frame of simulation and effects.
+    ///
+    /// - Parameters:
+    ///   - now: Current timestamp in seconds (monotonic).
+    ///   - size: Current viewport size for spawn & culling logic.
+    ///
+    /// Uses **real dt** for effects/decays and **simDt** (scaled by hit-stop) for gameplay.
     func update(now: TimeInterval, size: CGSize) {
         guard phase == .playing else { lastUpdate = now; return }
 
@@ -99,9 +201,12 @@ final class GameState {
         if lastUpdate == 0 { lastUpdate = now }
         let rawDt = now - lastUpdate
         lastUpdate = now
+
+        /// Clamped real time step to stabilize large hitches.
         let dt = min(max(rawDt, 0), 1.0/30.0)
 
         // --- NEW: apply timeScale from effectsSystem ---
+        /// Gameplay delta time slowed by hit-stop; passed to systems that simulate.
         let simDt = dt * effectsSystem.timeScale
 
         // Update performance tracking (use raw dt, unaffected by hit-stop)
@@ -143,11 +248,17 @@ final class GameState {
 
     // MARK: - System Coordination
 
+    /// Drives the auto-fire cadence and appends bullets into `CombatSystem`.
+    /// - Parameter dt: **Simulation dt** so firing rate slows during hit-stop.
     private func updateShooting(dt: TimeInterval) {
         let p = playerPosition()
         combatSystem.updateShooting(playerPos: p, worldCenter: worldCenter, dt: dt)
     }
 
+    /// Integrates enemies and applies simple AI (evader drift) and off-screen culling.
+    /// - Parameters:
+    ///   - dt: **Simulation dt**.
+    ///   - size: Viewport bounds for culling.
     private func updateEnemies(dt: TimeInterval, size: CGSize) {
         // Move enemies
         for i in asteroids.indices {
@@ -173,6 +284,12 @@ final class GameState {
         }
     }
 
+    /// Resolves player/enemy and bullet/enemy collisions, applies scoring, FX, and hit-stop.
+    /// - Returns: `true` if the player collided without a shield (i.e., game over).
+    /// - Parameters:
+    ///   - dt: **Simulation dt**.
+    ///   - size: Viewport (unused here; kept for symmetry).
+    ///   - now: Timestamp for misc. cooldowns/haptics if needed.
     private func updateCollisions(dt: TimeInterval, size: CGSize, now: TimeInterval) -> Bool {
         let playerPos = playerPosition()
         var collided = false
@@ -259,6 +376,7 @@ final class GameState {
         return collided
     }
 
+    /// Transitions to `.gameOver`, persists high score, and triggers crash FX/SFX.
     private func finalizeIfGameOver(_ collided: Bool) {
         if collided {
             player.isAlive = false
@@ -271,10 +389,13 @@ final class GameState {
 
     // MARK: - Helper Methods
     
+    /// Updates the smoothed frame time (ms) used by the dev meter.
+    /// - Parameter rawDt: Unclamped real delta.
     private func updatePerformanceMetrics(rawDt: TimeInterval) {
         _debugFrameMs = rawDt * 1000.0
     }
     
+    /// Chooses and applies hit-stop intensity + a small zoom kick by enemy type.
     private func applyHitStopForEnemy(_ type: EnemyType) {
         switch type {
         case .big:
@@ -288,6 +409,7 @@ final class GameState {
         }
     }
     
+    /// Adds a type-scaled screen shake amount on kill.
     private func addShakeForEnemy(_ type: EnemyType) {
         switch type {
         case .small: effectsSystem.addShake(0.8)
@@ -296,6 +418,7 @@ final class GameState {
         }
     }
     
+    /// Emits kill burst particles and a floating score toast.
     private func emitKillEffects(at point: CGPoint, for type: EnemyType, score: Int) {
         // Burst effect
         let burstCount = type == .big ? 20 : (type == .evader ? 16 : 12)
@@ -307,12 +430,14 @@ final class GameState {
 
     // MARK: - Public Interface
 
+    /// Converts the player's polar state (angle, radius) into world-space position.
     func playerPosition() -> CGPoint {
         let x = worldCenter.x + cos(player.angle) * player.radius
         let y = worldCenter.y + sin(player.angle) * player.radius
         return CGPoint(x: x, y: y)
     }
 
+    /// Toggles between `.playing` and `.paused`. No effect in other phases.
     func togglePause() {
         switch phase {
         case .playing: phase = .paused
@@ -321,11 +446,13 @@ final class GameState {
         }
     }
 
+    /// Latches/clears the “inner radius” control. When released, the current radius becomes sticky.
     func setInnerPress(_ pressing: Bool) {
         holdInnerRadius = pressing
         targetRadius = pressing ? motionSystem.minOrbit : player.radius
     }
 
+    /// Latches/clears the “outer radius” control. When released, the current radius becomes sticky.
     func setOuterPress(_ pressing: Bool) {
         holdOuterRadius = pressing
         targetRadius = pressing ? motionSystem.maxOrbit : player.radius
