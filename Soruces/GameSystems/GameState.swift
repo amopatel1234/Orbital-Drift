@@ -101,33 +101,38 @@ final class GameState {
         lastUpdate = now
         let dt = min(max(rawDt, 0), 1.0/30.0)
 
-        // Update performance tracking
+        // --- NEW: apply timeScale from effectsSystem ---
+        let simDt = dt * effectsSystem.timeScale
+
+        // Update performance tracking (use raw dt, unaffected by hit-stop)
         updatePerformanceMetrics(rawDt: rawDt)
 
-        // Update real-time effects
+        // Update real-time effects (use raw dt so shake/zoom/toasts don’t freeze during stop)
         effectsSystem.updateEffects(dt: dt, particleBudget: 1.0)
+
+        // Update scoring decay (real time, not sim time)
         scoringSystem.updateMultiplier(dt: dt)
 
-        // Update systems in order
-        spawningSystem.updateSpawning(dt: dt, size: size, asteroids: &asteroids, worldCenter: worldCenter)
+        // Update systems in order (use simDt so gameplay slows during hit-stop)
+        spawningSystem.updateSpawning(dt: simDt, size: size, asteroids: &asteroids, worldCenter: worldCenter)
         
-        updateShooting(dt: dt)
+        updateShooting(dt: simDt)
         
         motionSystem.updateMotion(player: &player,
                                  targetAngle: player.angle,
                                  targetRadius: targetRadius,
                                  holdRotateCCW: holdRotateCCW,
                                  holdRotateCW: holdRotateCW,
-                                 dt: dt,
+                                 dt: simDt,
                                  now: now)
         
-        updateEnemies(dt: dt, size: size)
-        combatSystem.updateBullets(dt: dt)
+        updateEnemies(dt: simDt, size: size)
+        combatSystem.updateBullets(dt: simDt)
         
-        let collided = updateCollisions(dt: dt, size: size, now: now)
-        combatSystem.updatePowerups(dt: dt, size: size, playerPos: playerPosition(), worldCenter: worldCenter, effects: effectsSystem)
+        let collided = updateCollisions(dt: simDt, size: size, now: now)
+        combatSystem.updatePowerups(dt: simDt, size: size, playerPos: playerPosition(), worldCenter: worldCenter, effects: effectsSystem)
         
-        combatSystem.updateInvulnerability(dt: dt)
+        combatSystem.updateInvulnerability(dt: simDt)
 
         finalizeIfGameOver(collided)
     }
@@ -269,8 +274,10 @@ final class GameState {
     private func applyHitStopForEnemy(_ type: EnemyType) {
         switch type {
         case .big:
+            effectsSystem.applyHitStopBig()
             effectsSystem.addZoomKick()
         case .evader:
+            effectsSystem.applyHitStopMed()
             effectsSystem.addZoomKick()
         case .small:
             break
