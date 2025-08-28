@@ -169,7 +169,10 @@ platform :ios do
       upload_to_testflight(
         skip_submission: true,
         app_platform: "ios",
-        changelog: last_git_commit[:message]
+        changelog: last_git_commit[:message],
+        groups: ["External Group"],
+        distribute_external: true,
+        submit_beta_review: true
       )
     ensure
       delete_keychain(name: keychain_name)
