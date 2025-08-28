@@ -45,7 +45,8 @@ final class SpawningSystem {
         
         while spawnAcc >= spawnInterval {
             spawnAcc -= spawnInterval
-            if asteroids.filter({ $0.alive }).count < cap {
+            
+            if asteroids.count(where: { $0.alive}) < cap {
                 spawnAsteroid(size: size, asteroids: &asteroids, worldCenter: worldCenter)
             }
         }
