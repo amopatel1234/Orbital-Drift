@@ -10,6 +10,11 @@
 		3B757C6A2E5E1D9100BE993D /* ScreenShake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C692E5E1D9100BE993D /* ScreenShake.swift */; };
 		3B757C6C2E5E346800BE993D /* MotionParallax.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C6B2E5E346800BE993D /* MotionParallax.swift */; };
 		3B757C6E2E5E347300BE993D /* StarfieldBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C6D2E5E347300BE993D /* StarfieldBackground.swift */; };
+		3B757C712E5EEAE500BE993D /* MotionSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C702E5EEAE500BE993D /* MotionSystem.swift */; };
+		3B757C732E5EEAF700BE993D /* CombatSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C722E5EEAF700BE993D /* CombatSystem.swift */; };
+		3B757C752E5EEB0000BE993D /* EffectsSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C742E5EEB0000BE993D /* EffectsSystem.swift */; };
+		3B757C772E5EEB0800BE993D /* SpawningSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C762E5EEB0800BE993D /* SpawningSystem.swift */; };
+		3B757C792E5EEB1000BE993D /* ScoringSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B757C782E5EEB1000BE993D /* ScoringSystem.swift */; };
 		3B9D9EB02E5A3140006281F0 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAB2E5A30D8006281F0 /* GameState.swift */; };
 		3B9D9EB12E5A3140006281F0 /* OverlayViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */; };
 		3B9D9EB22E5A3140006281F0 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */; };
@@ -49,6 +54,11 @@
 		3B757C692E5E1D9100BE993D /* ScreenShake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShake.swift; sourceTree = "<group>"; };
 		3B757C6B2E5E346800BE993D /* MotionParallax.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionParallax.swift; sourceTree = "<group>"; };
 		3B757C6D2E5E347300BE993D /* StarfieldBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarfieldBackground.swift; sourceTree = "<group>"; };
+		3B757C702E5EEAE500BE993D /* MotionSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionSystem.swift; sourceTree = "<group>"; };
+		3B757C722E5EEAF700BE993D /* CombatSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatSystem.swift; sourceTree = "<group>"; };
+		3B757C742E5EEB0000BE993D /* EffectsSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectsSystem.swift; sourceTree = "<group>"; };
+		3B757C762E5EEB0800BE993D /* SpawningSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpawningSystem.swift; sourceTree = "<group>"; };
+		3B757C782E5EEB1000BE993D /* ScoringSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringSystem.swift; sourceTree = "<group>"; };
 		3B9D9E732E5A3049006281F0 /* OrbitalDrift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OrbitalDrift.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B9D9E802E5A304D006281F0 /* OrbitalDriftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OrbitalDriftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B9D9E8A2E5A304D006281F0 /* OrbitalDriftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OrbitalDriftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -113,6 +123,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3B757C6F2E5EEADC00BE993D /* GameSystems */ = {
+			isa = PBXGroup;
+			children = (
+				3B757C782E5EEB1000BE993D /* ScoringSystem.swift */,
+				3B757C762E5EEB0800BE993D /* SpawningSystem.swift */,
+				3B757C742E5EEB0000BE993D /* EffectsSystem.swift */,
+				3B757C722E5EEAF700BE993D /* CombatSystem.swift */,
+				3B757C702E5EEAE500BE993D /* MotionSystem.swift */,
+				3B9D9EAB2E5A30D8006281F0 /* GameState.swift */,
+			);
+			path = GameSystems;
+			sourceTree = "<group>";
+		};
 		3B9D9E6A2E5A3049006281F0 = {
 			isa = PBXGroup;
 			children = (
@@ -153,7 +176,7 @@
 				3B9D9EAE2E5A30F7006281F0 /* Haptics.swift */,
 				3B9D9EAD2E5A30E9006281F0 /* OverlayViews.swift */,
 				3B9D9EAC2E5A30E1006281F0 /* OrbiterGameView.swift */,
-				3B9D9EAB2E5A30D8006281F0 /* GameState.swift */,
+				3B757C6F2E5EEADC00BE993D /* GameSystems */,
 				3B9D9EAA2E5A30C2006281F0 /* GameModels.swift */,
 				3B9D9EFA2E5B934D006281F0 /* Vector2.swift */,
 			);
@@ -307,10 +330,13 @@
 				3B757C6A2E5E1D9100BE993D /* ScreenShake.swift in Sources */,
 				3B9D9ED92E5AC5F2006281F0 /* TutorialView.swift in Sources */,
 				3B9D9EBD2E5A3582006281F0 /* HighScoresView.swift in Sources */,
+				3B757C752E5EEB0000BE993D /* EffectsSystem.swift in Sources */,
 				3B9D9EBB2E5A357B006281F0 /* MainMenuView.swift in Sources */,
+				3B757C712E5EEAE500BE993D /* MotionSystem.swift in Sources */,
 				3B9D9EB02E5A3140006281F0 /* GameState.swift in Sources */,
 				3B9D9EB12E5A3140006281F0 /* OverlayViews.swift in Sources */,
 				3B757C6E2E5E347300BE993D /* StarfieldBackground.swift in Sources */,
+				3B757C772E5EEB0800BE993D /* SpawningSystem.swift in Sources */,
 				3B9D9EF92E5B82A9006281F0 /* DisplayLinkAsync.swift in Sources */,
 				3B9D9EDB2E5ACCC5006281F0 /* DemoOrbitView.swift in Sources */,
 				3B9D9EB22E5A3140006281F0 /* Haptics.swift in Sources */,
@@ -318,10 +344,12 @@
 				3B9D9EDD2E5B61EC006281F0 /* SoundSynth.swift in Sources */,
 				3B9D9EB32E5A3140006281F0 /* OrbiterGameView.swift in Sources */,
 				3B757C6C2E5E346800BE993D /* MotionParallax.swift in Sources */,
+				3B757C732E5EEAF700BE993D /* CombatSystem.swift in Sources */,
 				3B9D9EB42E5A3140006281F0 /* GameModels.swift in Sources */,
 				3B9D9EB72E5A355B006281F0 /* AppRouter.swift in Sources */,
 				3B9D9EDF2E5B6403006281F0 /* MusicLoop.swift in Sources */,
 				3B9D9EFB2E5B934D006281F0 /* Vector2.swift in Sources */,
+				3B757C792E5EEB1000BE993D /* ScoringSystem.swift in Sources */,
 				3B9D9EBF2E5A3588006281F0 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
