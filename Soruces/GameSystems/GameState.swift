@@ -119,7 +119,6 @@ final class GameState {
         updateShooting(dt: simDt)
         
         motionSystem.updateMotion(player: &player,
-                                 targetAngle: player.angle,
                                  targetRadius: targetRadius,
                                  holdRotateCCW: holdRotateCCW,
                                  holdRotateCW: holdRotateCW,
