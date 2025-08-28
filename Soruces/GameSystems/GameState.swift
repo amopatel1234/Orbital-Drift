@@ -129,7 +129,12 @@ final class GameState {
         combatSystem.updateBullets(dt: simDt)
         
         let collided = updateCollisions(dt: simDt, size: size, now: now)
-        combatSystem.updatePowerups(dt: simDt, size: size, playerPos: playerPosition(), worldCenter: worldCenter, effects: effectsSystem)
+        combatSystem.updatePowerups(dt: simDt,
+                                    size: size,
+                                    playerPos: playerPosition(),
+                                    playerSize: player.size,
+                                    worldCenter: worldCenter,
+                                    effects: effectsSystem)
         
         combatSystem.updateInvulnerability(dt: simDt)
 

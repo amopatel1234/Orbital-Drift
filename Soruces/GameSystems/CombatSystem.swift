@@ -5,15 +5,8 @@
 //  Created by Amish Patel on 27/08/2025.
 //
 
-
-//
-//  CombatSystem.swift
-//  OrbitalDrift
-//
-//  Created by Amish Patel on 24/08/2025.
-//
-
 import SwiftUI
+import QuartzCore
 
 @MainActor
 @Observable
@@ -64,7 +57,12 @@ final class CombatSystem {
         bullets.removeAll { $0.life <= 0 }
     }
     
-    func updatePowerups(dt: TimeInterval, size: CGSize, playerPos: CGPoint, worldCenter: CGPoint, effects: EffectsSystem) {
+    func updatePowerups(dt: TimeInterval,
+                        size: CGSize,
+                        playerPos: CGPoint,
+                        playerSize: CGFloat,
+                        worldCenter: CGPoint,
+                        effects: EffectsSystem) {
         // Spawn powerups
         powerupTimer += dt
         if powerupTimer > 6.5 {
@@ -80,7 +78,7 @@ final class CombatSystem {
         // Collect powerups
         for i in powerups.indices {
             let d = (powerups[i].pos - Vector2(x: playerPos.x, y: playerPos.y)).length()
-            if d < (14 + powerups[i].size) { // player.size hardcoded
+            if d < (playerSize + powerups[i].size) { // player.size hardcoded
                 powerups[i].alive = false
                 if shieldCharges < maxShields {
                     shieldCharges += 1
