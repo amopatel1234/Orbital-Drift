@@ -126,35 +126,25 @@ game.holdRotateCW = true/false
 Contributions are welcome! Please follow these guidelines:
 
 ### Branching
-- Use feature branches (`feature/xyz`) for new systems or mechanics.
-- Use fix branches (`fix/bug-description`) for bug fixes.
+- Use feature branches (`feat/xyz`, `fix/bug-name`, etc.) that map to the change type.
+- Keep branches small and focused.
 
-### Code style
-- Swift 5.10+ with explicit access control (`private`, `fileprivate`, `internal`).
-- Use `// MARK:` and emoji tags (📦, 🎮, 🌍, etc.) to group related properties/methods.
-- Keep system responsibilities narrow: one job per class (`MotionSystem`, `CombatSystem`, etc.).
-- Avoid singletons except for platform APIs (`Haptics.shared`, `SoundSynth.shared`).
+### Code Style
+- Swift code should follow standard Swift API design guidelines.
+- Prefer readability and explicit naming over brevity.
+- Add inline documentation for non-trivial functions or math.
 
-### Documentation
-- Every system file should have a header docblock with:
-  - Responsibility
-  - Ownership notes (who owns which arrays/state)
-  - Update ordering (which `dt` to use)
-- Use triple-slash `///` for public APIs, `//` for internal commentary.
+### Commits
+- Follow [Conventional Commits](https://www.conventionalcommits.org/):
+  - `feat:` for new features
+  - `fix:` for bug fixes
+  - `refactor:` for refactoring code
+  - `docs:` for documentation updates
+  - `chore:` for tooling/config changes
+- Write commit messages in the present tense (e.g. `feat: add evader enemy AI`).
 
-### Testing
-- Use debug overlays/logs (`print(asteroids.count)`) when validating spawns/culling.
-- Simulate edge cases: 
-  - Max shields, back-to-back powerups.
-  - High spawn ramp (≥60s).
-  - Hit-stop overlapping with zoom kicks.
-
-### Commit messages
-- Use short imperative style:
-  - `Add hit-stop recovery smoothing`
-  - `Fix shield not consuming correctly`
-  - `Refactor SpawningSystem docs`
-
-### Pull requests
-- Keep PRs scoped to one system or concern.
-- Update README and system-level docs if behavior changes.
+### Pull Requests
+- **PR titles must also follow Conventional Commits** (e.g. `feat: implement scoring system`).
+- Ensure all systems build and run without errors.
+- Write clear PR descriptions explaining the motivation and changes.
+- Reference any relevant issues.
