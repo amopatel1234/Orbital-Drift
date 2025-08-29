@@ -171,6 +171,20 @@ final class CombatSystem {
         return false
     }
     
+    /// Applies a kills-based firepower tier by setting the current fire rate.
+    /// Tier 0 is baseline; higher tiers increase shots/sec. Patterns stay the same in Phase 1.
+    func setFirepowerTier(_ tier: Int) {
+        // Keep tiers clamped so future changes don't crash older builds.
+        let t = max(0, min(tier, 4))
+        switch t {
+        case 0: fireRate = 6.0     // baseline
+        case 1: fireRate = 7.2     // +20%
+        case 2: fireRate = 7.2     // will add 2-shot fan in Phase 2 (same rate)
+        case 3: fireRate = 8.2     // +~15% over tier 2
+        default: fireRate = 8.2    // tier 4 cap (Phase 2/3 can add pattern variety)
+        }
+    }
+    
     /// Resets per-run combat state (bullets, powerups, shields, timers).
     /// Does **not** affect systems outside combat.
     func reset() {

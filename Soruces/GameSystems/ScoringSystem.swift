@@ -46,9 +46,35 @@ final class ScoringSystem {
     /// Units per second by which the multiplier decays back toward 1.0.
     /// Applied using **real dt** (GameState should pass raw clamped dt).
     private let multiplierDecayPerSec: Double = 0.08
+    
+    // MARK: - Firepower progression (kills-based)
+    var killCount: Int = 0
+    var currentFireTier: Int = 0
+    /// Total kills needed to unlock tiers 1, 2, 3, 4 (tier 0 is the baseline).
+    let fireTierThresholds: [Int] = [8, 20, 40, 70]
 
     // MARK: - Public Interface
 
+    /// Increments kill count and returns a new firepower tier if a threshold was crossed.
+    /// - Returns: The new tier (0...N) if increased, otherwise `nil`.
+    @discardableResult
+    func registerKillAndMaybeTierUp(for enemyType: EnemyType) -> Int? {
+        killCount += 1
+
+        // Compute tier from total kills (simple threshold compare).
+        var computedTier = 0
+        for (idx, threshold) in fireTierThresholds.enumerated() {
+            if killCount >= threshold { computedTier = idx + 1 }
+            else { break }
+        }
+
+        if computedTier > currentFireTier {
+            currentFireTier = computedTier
+            return currentFireTier
+        }
+        return nil
+    }
+    
     /// Adds points scaled by the current `scoreMultiplier`.
     ///
     /// - Parameter points: The base points to add before multiplier scaling.
@@ -109,6 +135,8 @@ final class ScoringSystem {
     func reset() {
         score = 0
         scoreMultiplier = 1.0
+        killCount = 0
+        currentFireTier = 0
     }
 
     // MARK: - Private Implementation

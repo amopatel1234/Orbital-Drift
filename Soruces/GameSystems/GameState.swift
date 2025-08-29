@@ -180,6 +180,7 @@ final class GameState {
         effectsSystem.reset()
         spawningSystem.reset()
         scoringSystem.reset()
+        combatSystem.setFirepowerTier(0) // ensure baseline on new run
 
         lastUpdate = 0
         phase = .playing
@@ -360,6 +361,14 @@ final class GameState {
                             // Handle scoring and effects
                             let baseScore = enemy.type.scoreValue
                             let gainedScore = scoringSystem.addKillScore(baseScore, for: enemy.type)
+
+                            // Check if a firepower tier threshold was crossed by this kill
+                            if let newTier = scoringSystem.registerKillAndMaybeTierUp(for: enemy.type) {
+                                combatSystem.setFirepowerTier(newTier)
+                                // Optional tiny cue (kept subtle for Phase 1)
+                                effectsSystem.emitShockwave(at: hitPoint, maxRadius: 70)
+                                Haptics.shared.nearMiss()
+                            }
                             
                             addShakeForEnemy(enemy.type)
                             emitKillEffects(at: hitPoint, for: enemy.type, score: gainedScore)
