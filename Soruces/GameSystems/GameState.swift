@@ -367,6 +367,8 @@ final class GameState {
                                 combatSystem.setFirepowerTier(newTier)
                                 // Optional tiny cue (kept subtle for Phase 1)
                                 effectsSystem.emitShockwave(at: hitPoint, maxRadius: 70)
+                                effectsSystem.emitBurst(at: playerPos, color:bullets[bi].tint)
+                                effectsSystem.addZoomKick()
                                 Haptics.shared.nearMiss()
                             }
                             

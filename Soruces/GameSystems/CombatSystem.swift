@@ -58,6 +58,10 @@ final class CombatSystem {
     /// Internal timer for periodic shield powerup spawns.
     private var powerupTimer: TimeInterval = 0
     
+    // Visuals that track the current firepower tier
+    private var bulletTint: Color = .white
+    private var bulletSize: CGFloat = 3.5
+    
     // MARK: - Public Interface
 
     /// Updates autofire toward the **world center** and spawns bullets at a steady cadence.
@@ -70,19 +74,20 @@ final class CombatSystem {
     func updateShooting(playerPos: CGPoint, worldCenter: CGPoint, dt: TimeInterval) {
         fireAccumulator += dt
         let fireInterval = 1.0 / fireRate
-        
+
         while fireAccumulator >= fireInterval {
             fireAccumulator -= fireInterval
-            
+
             let dir = Vector2(x: worldCenter.x - playerPos.x, y: worldCenter.y - playerPos.y).normalized()
             let speed: CGFloat = 420
             let vel = dir * speed
-            
+
             bullets.append(Bullet(
                 pos: .init(x: playerPos.x, y: playerPos.y),
                 vel: vel,
                 life: 1.2,
-                size: 3.5
+                size: bulletSize,      // UPDATED
+                tint: bulletTint       // NEW
             ))
         }
     }
@@ -171,17 +176,31 @@ final class CombatSystem {
         return false
     }
     
-    /// Applies a kills-based firepower tier by setting the current fire rate.
+    /// Applies a kills-based firepower tier by setting fire rate AND visuals.
     /// Tier 0 is baseline; higher tiers increase shots/sec. Patterns stay the same in Phase 1.
     func setFirepowerTier(_ tier: Int) {
-        // Keep tiers clamped so future changes don't crash older builds.
         let t = max(0, min(tier, 4))
         switch t {
-        case 0: fireRate = 6.0     // baseline
-        case 1: fireRate = 7.2     // +20%
-        case 2: fireRate = 7.2     // will add 2-shot fan in Phase 2 (same rate)
-        case 3: fireRate = 8.2     // +~15% over tier 2
-        default: fireRate = 8.2    // tier 4 cap (Phase 2/3 can add pattern variety)
+        case 0:
+            fireRate = 6.0
+            bulletTint = Color(hue: 0.55, saturation: 0.25, brightness: 1.0) // soft teal
+            bulletSize = 3.5
+        case 1:
+            fireRate = 7.2
+            bulletTint = Color(hue: 0.58, saturation: 0.60, brightness: 1.0) // electric blue
+            bulletSize = 3.7
+        case 2:
+            fireRate = 7.2
+            bulletTint = Color(hue: 0.75, saturation: 0.65, brightness: 1.0) // violet
+            bulletSize = 3.9
+        case 3:
+            fireRate = 8.2
+            bulletTint = Color(hue: 0.88, saturation: 0.70, brightness: 1.0) // magenta
+            bulletSize = 4.1
+        default: // tier 4+
+            fireRate = 8.2
+            bulletTint = Color(hue: 0.10, saturation: 0.85, brightness: 1.0) // hot amber/gold
+            bulletSize = 4.3
         }
     }
     
