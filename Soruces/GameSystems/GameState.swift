@@ -180,6 +180,7 @@ final class GameState {
         effectsSystem.reset()
         spawningSystem.reset()
         scoringSystem.reset()
+        combatSystem.setFirepowerTier(0) // ensure baseline on new run
 
         lastUpdate = 0
         phase = .playing
@@ -217,6 +218,14 @@ final class GameState {
 
         // Update scoring decay (real time, not sim time)
         scoringSystem.updateMultiplier(dt: dt)
+
+        // NEW: idle-decay firepower lifecycle (real time)
+        if let newTier = scoringSystem.updateFireTierLifecycle(dt: dt) {
+            combatSystem.setFirepowerTier(newTier)
+            // Optional subtle cue:
+             effectsSystem.addZoomKick()
+             Haptics.shared.nearMiss()
+        }
 
         // Update systems in order (use simDt so gameplay slows during hit-stop)
         spawningSystem.updateSpawning(dt: simDt, size: size, asteroids: &asteroids, worldCenter: worldCenter)
@@ -310,6 +319,13 @@ final class GameState {
                     Haptics.shared.nearMiss()
                     SoundSynth.shared.shieldSave()
                     
+                    // After shield save FX / before continue:
+                    if let newTier = scoringSystem.downgradeFireTierOnHit() {
+                        combatSystem.setFirepowerTier(newTier)
+                        // Optional feedback for losing power:
+                         effectsSystem.addShake(0.8)
+                    }
+                    
                     // Push player out slightly
                     player.radius = min(player.radius + 10, 160)
                     targetRadius = player.radius
@@ -329,7 +345,7 @@ final class GameState {
                     if asteroids[ai].pos.distance(to: combatSystem.bullets[bi].pos) < (asteroids[ai].size + combatSystem.bullets[bi].size) {
                         
                         combatSystem.bullets[bi].life = 0
-                        asteroids[ai].hp -= 1
+                        asteroids[ai].hp -= combatSystem.bullets[bi].damage
 
                         let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x), y: CGFloat(asteroids[ai].pos.y))
                         effectsSystem.emitBurst(at: hitPoint,
@@ -360,6 +376,17 @@ final class GameState {
                             // Handle scoring and effects
                             let baseScore = enemy.type.scoreValue
                             let gainedScore = scoringSystem.addKillScore(baseScore, for: enemy.type)
+
+                            // Check if a firepower tier threshold was crossed by this kill
+                            if let newTier = scoringSystem.registerKillAndMaybeTierUp(for: enemy.type) {
+                                combatSystem.setFirepowerTier(newTier)
+                                // Optional tiny cue (kept subtle for Phase 1)
+                                effectsSystem.emitShockwave(at: hitPoint, maxRadius: 70)
+                                effectsSystem.emitBurst(at: playerPos, color:bullets[bi].tint)
+                                effectsSystem.addZoomKick()
+                                Haptics.shared.nearMiss()
+                            }
+                            scoringSystem.noteKillForFireTier()
                             
                             addShakeForEnemy(enemy.type)
                             emitKillEffects(at: hitPoint, for: enemy.type, score: gainedScore)

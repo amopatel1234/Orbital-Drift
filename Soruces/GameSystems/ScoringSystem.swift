@@ -46,9 +46,59 @@ final class ScoringSystem {
     /// Units per second by which the multiplier decays back toward 1.0.
     /// Applied using **real dt** (GameState should pass raw clamped dt).
     private let multiplierDecayPerSec: Double = 0.08
+    
+    // MARK: - Firepower lifecycle (idle decay / on-hit downgrade)
+
+    // Time since last kill (sec). Resets to 0 on every kill.
+    private var killIdleTimer: TimeInterval = 0
+
+    /// Base seconds of grace before a tier drop when idle (tier 1).
+    /// Higher tiers decay a bit faster for tension; tweak to taste.
+    var fireTierIdleBase: TimeInterval = 9.0
+
+    /// Per-tier multiplier (< 1.0 = faster decay at higher tiers; > 1.0 = slower).
+    var fireTierIdleFactor: Double = 0.9
+    
+    // MARK: - Firepower progression (kills-based)
+    var killCount: Int = 0
+    var currentFireTier: Int = 0
+    /// Total kills needed to unlock tiers 1, 2, 3, 4 (tier 0 is the baseline).
+    let fireTierThresholds: [Int] = [8, 20, 40, 70]
+    
+    // MARK: - Firepower tier (read-only surface)
+    var fireTier: Int { currentFireTier }
+
+    /// Pure helper (does not mutate) in case you want to preview tier from an arbitrary kill count.
+    func fireTier(forKillCount k: Int) -> Int {
+        var tier = 0
+        for (idx, threshold) in fireTierThresholds.enumerated() {
+            if k >= threshold { tier = idx + 1 } else { break }
+        }
+        return tier
+    }
 
     // MARK: - Public Interface
 
+    /// Increments kill count and returns a new firepower tier if a threshold was crossed.
+    /// - Returns: The new tier (0...N) if increased, otherwise `nil`.
+    @discardableResult
+    func registerKillAndMaybeTierUp(for enemyType: EnemyType) -> Int? {
+        killCount += 1
+
+        // Compute tier from total kills (simple threshold compare).
+        var computedTier = 0
+        for (idx, threshold) in fireTierThresholds.enumerated() {
+            if killCount >= threshold { computedTier = idx + 1 }
+            else { break }
+        }
+
+        if computedTier > currentFireTier {
+            currentFireTier = computedTier
+            return currentFireTier
+        }
+        return nil
+    }
+    
     /// Adds points scaled by the current `scoreMultiplier`.
     ///
     /// - Parameter points: The base points to add before multiplier scaling.
@@ -97,6 +147,76 @@ final class ScoringSystem {
         }
     }
 
+    /// Resets the idle timer for the firepower tier lifecycle.
+    ///
+    /// Call this whenever the player successfully kills an enemy.
+    /// This prevents the tier from decaying due to inactivity.
+    ///
+    /// Typical usage:
+    /// - Immediately after registering a kill and awarding score.
+    /// - Ensures that "keep shooting" behavior is rewarded by
+    ///   maintaining or increasing firepower tier.
+    func noteKillForFireTier() {
+        killIdleTimer = 0
+    }
+    
+    /// Advances the firepower idle timer and downgrades the tier if timeout elapses.
+    ///
+    /// - Important: Should be called once per frame from `GameState.update(...)`,
+    ///   using **real-time delta (`dt`)** so decay is unaffected by hit-stop.
+    /// - If no kills are registered for longer than the configured timeout,
+    ///   the current tier decreases by one.
+    /// - On downgrade, the idle timer is reset for the new tier.
+    ///
+    /// - Parameter dt: Real-time delta time in seconds.
+    /// - Returns: The new tier if a downgrade occurred, or `nil` if unchanged.
+    ///
+    /// Example:
+    /// ```swift
+    /// if let newTier = scoringSystem.updateFireTierLifecycle(dt: dt) {
+    ///     combatSystem.setFirepowerTier(newTier)
+    /// }
+    /// ```
+    @discardableResult
+    func updateFireTierLifecycle(dt: TimeInterval) -> Int? {
+        // Tier 0 never decays
+        if currentFireTier <= 0 { return nil }
+        
+        killIdleTimer += dt
+        let timeout = idleTimeout(for: currentFireTier)
+        if killIdleTimer >= timeout {
+            currentFireTier -= 1
+            killIdleTimer = 0
+            return currentFireTier
+        }
+        return nil
+    }
+    
+    /// Immediately reduces the firepower tier as a penalty for taking damage.
+    ///
+    /// Typically called from `GameState` when the player collides with an enemy
+    /// and either consumes a shield or is otherwise hit.
+    ///
+    /// - Parameter amount: How many tiers to drop (default = 1).
+    /// - Returns: The new tier if a downgrade occurred, or `nil` if unchanged.
+    ///
+    /// Example:
+    /// ```swift
+    /// if let newTier = scoringSystem.downgradeFireTierOnHit() {
+    ///     combatSystem.setFirepowerTier(newTier)
+    /// }
+    /// ```
+    @discardableResult
+    func downgradeFireTierOnHit(amount: Int = 1) -> Int? {
+        let old = currentFireTier
+        currentFireTier = max(0, currentFireTier - amount)
+        if currentFireTier != old {
+            killIdleTimer = 0
+            return currentFireTier
+        }
+        return nil
+    }
+    
     /// Writes `highScore` if the current `score` exceeds it.
     ///
     /// - Call when a run ends (e.g., on transition to `.gameOver`).
@@ -109,6 +229,9 @@ final class ScoringSystem {
     func reset() {
         score = 0
         scoreMultiplier = 1.0
+        killCount = 0
+        currentFireTier = 0
+        killIdleTimer = 0
     }
 
     // MARK: - Private Implementation
@@ -123,5 +246,17 @@ final class ScoringSystem {
         case .evader: return 0.18
         case .big:    return 0.25
         }
+    }
+    
+    /// Calculates the idle timeout duration (seconds) for the given tier.
+    ///
+    /// - Higher tiers can have shorter timeouts to add tension.
+    /// - Tier 0 is exempt and returns `.infinity`.
+    ///
+    /// - Parameter tier: Current firepower tier (0 = base).
+    /// - Returns: Timeout in seconds before a decay occurs.
+    private func idleTimeout(for tier: Int) -> TimeInterval {
+        guard tier > 0 else { return .infinity } // no decay at tier 0
+        return fireTierIdleBase * pow(fireTierIdleFactor, Double(tier - 1))
     }
 }

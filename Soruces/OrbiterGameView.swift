@@ -247,10 +247,11 @@ private struct BulletsCanvas: View {
                 var path = Path()
                 path.move(to: p1)
                 path.addLine(to: p2)
-                context.stroke(path, with: .color(.white.opacity(0.95)), lineWidth: 2)
+                context.stroke(path, with: .color(b.tint), lineWidth: 2)
             }
         }
         .allowsHitTesting(false)
+        .drawingGroup(opaque: false)
     }
 }
 
