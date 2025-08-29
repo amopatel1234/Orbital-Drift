@@ -52,6 +52,18 @@ final class ScoringSystem {
     var currentFireTier: Int = 0
     /// Total kills needed to unlock tiers 1, 2, 3, 4 (tier 0 is the baseline).
     let fireTierThresholds: [Int] = [8, 20, 40, 70]
+    
+    // MARK: - Firepower tier (read-only surface)
+    var fireTier: Int { currentFireTier }
+
+    /// Pure helper (does not mutate) in case you want to preview tier from an arbitrary kill count.
+    func fireTier(forKillCount k: Int) -> Int {
+        var tier = 0
+        for (idx, threshold) in fireTierThresholds.enumerated() {
+            if k >= threshold { tier = idx + 1 } else { break }
+        }
+        return tier
+    }
 
     // MARK: - Public Interface
 
