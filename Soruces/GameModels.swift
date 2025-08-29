@@ -26,6 +26,7 @@ struct Bullet: Identifiable {
     var life: CGFloat = 1.2     // seconds before auto-despawn
     var size: CGFloat = 3.5
     var tint: Color = .white
+    var damage: Int = 1
 }
 
 enum EnemyType: Int {

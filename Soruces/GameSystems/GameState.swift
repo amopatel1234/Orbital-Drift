@@ -330,7 +330,7 @@ final class GameState {
                     if asteroids[ai].pos.distance(to: combatSystem.bullets[bi].pos) < (asteroids[ai].size + combatSystem.bullets[bi].size) {
                         
                         combatSystem.bullets[bi].life = 0
-                        asteroids[ai].hp -= 1
+                        asteroids[ai].hp -= combatSystem.bullets[bi].damage
 
                         let hitPoint = CGPoint(x: CGFloat(asteroids[ai].pos.x), y: CGFloat(asteroids[ai].pos.y))
                         effectsSystem.emitBurst(at: hitPoint,

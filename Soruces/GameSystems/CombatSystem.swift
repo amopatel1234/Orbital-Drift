@@ -99,8 +99,15 @@ final class CombatSystem {
         }
     }
     
-    /// Spawns a burst of bullets in a fan centered on `dir`.
-    /// Spawns `count` bullets in a symmetric fan around `dir`.
+    /// Spawns a "fan" of bullets radiating around a base direction,
+    /// applying tier-based visuals and damage scaling.
+    ///
+    /// - Parameters:
+    ///   - origin: World position of bullet spawn (usually player).
+    ///   - dir: Normalized direction vector toward target.
+    ///   - count: Number of bullets to spawn in the fan.
+    ///   - spread: Angular spread (radians).
+    ///   - tier: Current firepower tier.
     private func spawnBulletFan(origin: CGPoint, dir: Vector2, count: Int, spread: CGFloat) {
         // Avoid atan2 on (0,0) just in case
         let d = dir.length() > 0 ? dir.normalized() : Vector2(x: 1, y: 0)
@@ -117,7 +124,8 @@ final class CombatSystem {
                 vel: vel,
                 life: 1.2,
                 size: bulletSize,
-                tint: bulletTint
+                tint: bulletTint,
+                damage: bulletDamageForTier(currentTier)
             ))
         }
     }
@@ -255,5 +263,26 @@ final class CombatSystem {
         guard invulnerability > 0 else { return 0 }
         let t = CACurrentMediaTime()
         return (sin(t * 10) * 0.5 + 0.5)
+    }
+    
+    /// Returns bullet damage for the current firepower tier.
+    ///
+    /// Scaling strategy:
+    /// - **Tier 0–1**: 1 dmg (baseline + first step is just faster/more ROF).
+    /// - **Tier 2–3**: 2 dmg (feels noticeably stronger, matches visual cues).
+    /// - **Tier 4+**: 3 dmg (chunky shots, makes high tiers feel powerful).
+    ///
+    /// Tuned to avoid trivializing big enemies while rewarding progression.
+    ///
+    /// - Parameter tier: Current firepower tier.
+    /// - Returns: Damage each bullet should deal.
+    private func bulletDamageForTier(_ tier: Int) -> Int {
+        switch tier {
+        case 0: return 1          // baseline
+        case 1: return 1          // slightly faster, still 1 dmg
+        case 2: return 2
+        case 3: return 2
+        default: return 3         // 4+ feels chunky but not absurd
+        }
     }
 }
