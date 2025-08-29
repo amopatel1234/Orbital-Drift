@@ -27,47 +27,52 @@ import SwiftUI
 @Observable
 final class ScoringSystem {
     // MARK: - Score State
-
+    
     /// Current run score (in points). Mutated via `addScore(_:)` and `addKillScore(_:for:)`.
     var score: Int = 0
-
+    
     /// Highest score recorded across app launches. Updated in `finalizeScore()`.
     var highScore: Int = UserDefaults.standard.integer(forKey: "highScore")
-
+    
     /// Multiplicative factor applied to most scoring events (≥ 1.0).
     /// Decays toward 1.0 over time; boosted on kills by enemy difficulty.
     var scoreMultiplier: Double = 1.0
-
+    
     // MARK: - Multiplier Configuration
-
+    
     /// Upper bound for `scoreMultiplier` to avoid runaway growth.
     private let maxMultiplier: Double = 10.0
-
+    
     /// Units per second by which the multiplier decays back toward 1.0.
     /// Applied using **real dt** (GameState should pass raw clamped dt).
     private let multiplierDecayPerSec: Double = 0.08
     
+    // MARK: - Overdrive Charge
+    var overdriveCharge: Double = 0            // 0.0 ... 1.0
+    var overdriveChargePerKill: Double = 0.12  // tweak: ~9 kills to full by default
+    
     // MARK: - Firepower lifecycle (idle decay / on-hit downgrade)
-
+    
     // Time since last kill (sec). Resets to 0 on every kill.
     private var killIdleTimer: TimeInterval = 0
-
+    
     /// Base seconds of grace before a tier drop when idle (tier 1).
     /// Higher tiers decay a bit faster for tension; tweak to taste.
     var fireTierIdleBase: TimeInterval = 9.0
-
+    
     /// Per-tier multiplier (< 1.0 = faster decay at higher tiers; > 1.0 = slower).
     var fireTierIdleFactor: Double = 0.9
     
     // MARK: - Firepower progression (kills-based)
     var killCount: Int = 0
     var currentFireTier: Int = 0
+    
     /// Total kills needed to unlock tiers 1, 2, 3, 4 (tier 0 is the baseline).
     let fireTierThresholds: [Int] = [8, 20, 40, 70]
     
     // MARK: - Firepower tier (read-only surface)
     var fireTier: Int { currentFireTier }
-
+    
     /// Pure helper (does not mutate) in case you want to preview tier from an arbitrary kill count.
     func fireTier(forKillCount k: Int) -> Int {
         var tier = 0
@@ -76,22 +81,22 @@ final class ScoringSystem {
         }
         return tier
     }
-
+    
     // MARK: - Public Interface
-
+    
     /// Increments kill count and returns a new firepower tier if a threshold was crossed.
     /// - Returns: The new tier (0...N) if increased, otherwise `nil`.
     @discardableResult
     func registerKillAndMaybeTierUp(for enemyType: EnemyType) -> Int? {
         killCount += 1
-
+        
         // Compute tier from total kills (simple threshold compare).
         var computedTier = 0
         for (idx, threshold) in fireTierThresholds.enumerated() {
             if killCount >= threshold { computedTier = idx + 1 }
             else { break }
         }
-
+        
         if computedTier > currentFireTier {
             currentFireTier = computedTier
             return currentFireTier
@@ -107,7 +112,7 @@ final class ScoringSystem {
         let gained = Int(Double(points) * scoreMultiplier)
         score += gained
     }
-
+    
     /// Adds kill score for an enemy and then boosts the multiplier for future kills.
     ///
     /// **Order of operations (intentional):**
@@ -122,12 +127,12 @@ final class ScoringSystem {
         // 1) Score with current multiplier (pre-boost)
         let gained = Int(Double(baseValue) * scoreMultiplier)
         score += gained
-
+        
         // 2) Boost multiplier for subsequent kills
         addMultiplierBoost(for: enemyType)
         return gained
     }
-
+    
     /// Applies a multiplier boost based on enemy difficulty.
     ///
     /// - Parameter enemyType: Enemy difficulty (small/evader/big).
@@ -136,7 +141,7 @@ final class ScoringSystem {
         let boost = multiplierBoost(for: enemyType)
         scoreMultiplier = min(maxMultiplier, scoreMultiplier + boost)
     }
-
+    
     /// Updates multiplier decay using **real dt** (unaffected by hit-stop).
     ///
     /// - Parameter dt: Real (clamped) frame delta in seconds. Do **not** scale by timeScale.
@@ -146,7 +151,7 @@ final class ScoringSystem {
             scoreMultiplier = max(1.0, scoreMultiplier - multiplierDecayPerSec * dt)
         }
     }
-
+    
     /// Resets the idle timer for the firepower tier lifecycle.
     ///
     /// Call this whenever the player successfully kills an enemy.
@@ -217,6 +222,32 @@ final class ScoringSystem {
         return nil
     }
     
+    /// Tracks kill-based progress toward Overdrive activation.
+    ///
+    /// Each enemy kill adds `overdriveChargePerKill` toward `overdriveCharge`.
+    /// When the charge reaches or exceeds 1.0, this method returns `true`
+    /// to signal that Overdrive should be triggered by `GameState`.
+    ///
+    /// - Returns: `true` if the meter filled this call and Overdrive
+    ///   should activate; otherwise `false`.
+    @discardableResult
+    func noteKillForOverdrive() -> Bool {
+        overdriveCharge = min(1.0, overdriveCharge + overdriveChargePerKill)
+        if overdriveCharge >= 1.0 {
+            overdriveCharge = 0
+            return true
+        }
+        return false
+    }
+    
+    /// Resets Overdrive charge to zero.
+       ///
+       /// - Note: Called automatically on run reset, but can also be
+       ///   invoked if you want to clear the meter early.
+    func resetOverdrive() {
+        overdriveCharge = 0
+    }
+    
     /// Writes `highScore` if the current `score` exceeds it.
     ///
     /// - Call when a run ends (e.g., on transition to `.gameOver`).
@@ -224,7 +255,7 @@ final class ScoringSystem {
         highScore = max(highScore, score)
         UserDefaults.standard.set(highScore, forKey: "highScore")
     }
-
+    
     /// Resets per-run scoring to defaults. Does **not** modify `highScore`.
     func reset() {
         score = 0
@@ -232,10 +263,11 @@ final class ScoringSystem {
         killCount = 0
         currentFireTier = 0
         killIdleTimer = 0
+        overdriveCharge = 0
     }
-
+    
     // MARK: - Private Implementation
-
+    
     /// Enemy-type-specific multiplier boost magnitudes.
     ///
     /// - Returns: The amount to add to `scoreMultiplier` after a kill.

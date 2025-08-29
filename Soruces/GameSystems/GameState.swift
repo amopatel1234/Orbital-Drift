@@ -387,6 +387,12 @@ final class GameState {
                                 Haptics.shared.nearMiss()
                             }
                             scoringSystem.noteKillForFireTier()
+                            if scoringSystem.noteKillForOverdrive() {
+                                combatSystem.startOverdrive()
+                                // nice little cue:
+                                effectsSystem.addZoomKick()
+                                effectsSystem.emitShockwave(at: hitPoint, maxRadius: 120)
+                            }
                             
                             addShakeForEnemy(enemy.type)
                             emitKillEffects(at: hitPoint, for: enemy.type, score: gainedScore)
