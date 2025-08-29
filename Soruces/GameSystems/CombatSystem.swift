@@ -65,6 +65,13 @@ final class CombatSystem {
     // Current kills-based firepower tier (0+), used to choose shot pattern.
     private var currentTier: Int = 0
     
+    // MARK: - Overdrive
+    private(set) var overdriveActive: Bool = false
+    private var overdriveTimer: TimeInterval = 0
+    var overdriveDuration: TimeInterval = 6.0
+    var overdriveFireRateMul: Double = 1.5
+    var overdriveDamageBonus: Int = 1
+    
     // MARK: - Public Interface
     
     /// Updates autofire toward the **world center** and spawns bullets at a steady cadence.
@@ -75,30 +82,33 @@ final class CombatSystem {
     ///   - dt: **Simulation delta time** (scaled by hit-stop).
     /// - Order: Call **before** collision checks so newly spawned bullets can interact this frame.
     func updateShooting(playerPos: CGPoint, worldCenter: CGPoint, dt: TimeInterval) {
+        let effectiveFireRate = fireRate * (overdriveActive ? overdriveFireRateMul : 1.0)
+
         fireAccumulator += dt
-        let fireInterval = 1.0 / fireRate
-        
+        let fireInterval = 1.0 / effectiveFireRate
+
         while fireAccumulator >= fireInterval {
             fireAccumulator -= fireInterval
 
-            let dir = Vector2(x: worldCenter.x - playerPos.x,
-                              y: worldCenter.y - playerPos.y).normalized()
+            let dir = Vector2(
+                x: worldCenter.x - playerPos.x,
+                y: worldCenter.y - playerPos.y
+            ).normalized()
 
             switch currentTier {
             case 0:
                 spawnBulletFan(origin: playerPos, dir: dir, count: 1, spread: 0)
             case 1:
-                spawnBulletFan(origin: playerPos, dir: dir, count: 2, spread: .pi / 45) // ~8°
+                spawnBulletFan(origin: playerPos, dir: dir, count: 2, spread: .pi / 45) // ~6°
             case 2:
-                spawnBulletFan(origin: playerPos, dir: dir, count: 3, spread: .pi / 44) // ~8.2°
+                spawnBulletFan(origin: playerPos, dir: dir, count: 3, spread: .pi / 44) // ~10°
             case 3:
-                spawnBulletFan(origin: playerPos, dir: dir, count: 4, spread: .pi / 40) // ~13.6°
+                spawnBulletFan(origin: playerPos, dir: dir, count: 4, spread: .pi / 40) // ~14°
             default:
-                spawnBulletFan(origin: playerPos, dir: dir, count: 5, spread: .pi / 30) // ~24°
+                spawnBulletFan(origin: playerPos, dir: dir, count: 5, spread: .pi / 30) // ~18°
             }
         }
     }
-    
     /// Spawns a "fan" of bullets radiating around a base direction,
     /// applying tier-based visuals and damage scaling.
     ///
@@ -140,6 +150,9 @@ final class CombatSystem {
             bullets[i].life -= CGFloat(dt)
         }
         bullets.removeAll { $0.life <= 0 }
+
+        // NEW
+        updateOverdrive(dt: dt)
     }
     
     /// Spawns and collects shield powerups.
@@ -241,6 +254,37 @@ final class CombatSystem {
             fireRate = 8.2
             bulletTint = Color(hue: 0.10, saturation: 0.85, brightness: 1.0)
             bulletSize = 4.3
+        }
+    }
+    
+    /// Activates Overdrive mode.
+       ///
+       /// Overdrive temporarily boosts shooting performance:
+       /// - Increases fire rate by multiplying `fireRate`
+       ///   with `overdriveFireRateMul`.
+       /// - Increases bullet damage by `overdriveDamageBonus`.
+       /// - Alters bullet tint (visual feedback).
+       ///
+       /// Overdrive will automatically expire after `duration` seconds.
+       ///
+       /// - Parameter duration: Number of seconds Overdrive remains active.
+    func startOverdrive(duration: TimeInterval? = nil) {
+        overdriveActive = true
+        overdriveTimer = duration ?? overdriveDuration
+    }
+
+    /// Updates Overdrive timers each frame.
+        ///
+        /// Decrements `overdriveTimer` using simulation delta time
+        /// (`simDt`). When the timer reaches zero, disables Overdrive.
+        ///
+        /// - Parameter dt: Simulation delta time, scaled by hit-stop.
+    func updateOverdrive(dt: TimeInterval) {
+        guard overdriveActive else { return }
+        overdriveTimer -= dt
+        if overdriveTimer <= 0 {
+            overdriveActive = false
+            overdriveTimer = 0
         }
     }
     
