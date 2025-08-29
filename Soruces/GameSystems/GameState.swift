@@ -219,6 +219,14 @@ final class GameState {
         // Update scoring decay (real time, not sim time)
         scoringSystem.updateMultiplier(dt: dt)
 
+        // NEW: idle-decay firepower lifecycle (real time)
+        if let newTier = scoringSystem.updateFireTierLifecycle(dt: dt) {
+            combatSystem.setFirepowerTier(newTier)
+            // Optional subtle cue:
+             effectsSystem.addZoomKick()
+             Haptics.shared.nearMiss()
+        }
+
         // Update systems in order (use simDt so gameplay slows during hit-stop)
         spawningSystem.updateSpawning(dt: simDt, size: size, asteroids: &asteroids, worldCenter: worldCenter)
         
@@ -311,6 +319,13 @@ final class GameState {
                     Haptics.shared.nearMiss()
                     SoundSynth.shared.shieldSave()
                     
+                    // After shield save FX / before continue:
+                    if let newTier = scoringSystem.downgradeFireTierOnHit() {
+                        combatSystem.setFirepowerTier(newTier)
+                        // Optional feedback for losing power:
+                         effectsSystem.addShake(0.8)
+                    }
+                    
                     // Push player out slightly
                     player.radius = min(player.radius + 10, 160)
                     targetRadius = player.radius
@@ -371,6 +386,7 @@ final class GameState {
                                 effectsSystem.addZoomKick()
                                 Haptics.shared.nearMiss()
                             }
+                            scoringSystem.noteKillForFireTier()
                             
                             addShakeForEnemy(enemy.type)
                             emitKillEffects(at: hitPoint, for: enemy.type, score: gainedScore)
