@@ -22,7 +22,7 @@ struct MainMenuView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 24) {
-                Text("Orbital Drift")
+                Text("Astreus")
                     .font(.system(size: 44, weight: .black, design: .rounded))
                 Text("Best: \(scores.best)")
                     .font(.headline).monospacedDigit()

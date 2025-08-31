@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct OrbitalDriftApp: App {
+struct AstreusApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
