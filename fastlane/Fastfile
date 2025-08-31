@@ -70,7 +70,7 @@ platform :ios do
       # Update build number 
       increment_build_number(
         build_number: build_number,
-        xcodeproj: "OrbitalDrift.xcodeproj"
+        xcodeproj: "Astreus.xcodeproj"
       )
       
       # Resolve repo root no matter where Fastlane runs from
@@ -88,7 +88,7 @@ platform :ios do
 	  xcodeproj_path = candidates.find { |p| File.basename(p) == "whattomake.xcodeproj" } || candidates.first
 
 	  UI.message("Opening Xcode project at: #{xcodeproj_path}")
-	  target_names   = ['OrbitalDrift']     # add extension target names here if needed
+	  target_names   = ['Astreus']     # add extension target names here if needed
 	  configs_to_set = ['Release']        # or %w[Debug Release] if you want both
 
 	  require 'xcodeproj'
@@ -115,20 +115,20 @@ platform :ios do
 
       get_provisioning_profile(
         readonly: true,
-        app_identifier: "amishpatel.OrbitalDrift",
-        provisioning_name: "OrbitalDriftAppStore"
+        app_identifier: "amishpatel.Astreus",
+        provisioning_name: "AstreusAppStore"
       )
       
       update_code_signing_settings(
         use_automatic_signing: false,
         code_sign_identity: "Apple Distribution",
-        profile_name: "OrbitalDriftAppStore",
-        targets: "OrbitalDrift"
+        profile_name: "AstreusAppStore",
+        targets: "Astreus"
       )
       
       ipa_path = gym(
-        project: "OrbitalDrift.xcodeproj",
-        scheme: "OrbitalDrift",
+        project: "Astreus.xcodeproj",
+        scheme: "Astreus",
         export_method: "app-store",
         destination: "generic/platform=iOS",
         sdk: "iphoneos"
